@@ -1,0 +1,60 @@
+#ifndef UTIL_INIT_H
+#define UTIL_INIT_H
+#include <cstdlib>
+#include <string>
+#include <vector>
+namespace stdr {
+
+std::vector<std::string> tok(const std::string &line, char c) {
+    std::vector<std::string> ret;
+    size_t start_index = 0;
+    for (size_t i = 0; i < line.size(); i++) {
+        if (line[i] == c) {
+            ret.push_back(line.substr(start_index, i - start_index));
+            start_index = i + 1;
+        }
+    }
+    ret.push_back(line.substr(start_index));
+    return ret;
+}
+template <typename T> class vector {
+  private:
+    static constexpr size_t defaultsz = 512;
+    T *raw;
+    size_t siz;
+    size_t lastfree{0};
+
+  public:
+    vector() : raw(new T[defaultsz]), siz(defaultsz) {}
+    explicit vector(size_t sizes) : raw(new T[sizes]), siz(sizes) {}
+    [[nodiscard]] size_t size() const { return lastfree; }
+    void reserve(size_t new_capacity) {
+        if (new_capacity <= siz) {
+            return;
+        }
+        T *new_raw = new T[new_capacity];
+        for (size_t i = 0; i < lastfree; i++) {
+            new_raw[i] = raw[i];
+        }
+        delete[] raw;
+        raw = new_raw;
+        siz = new_capacity;
+    }
+    T *begin() { return raw; }
+    T *end() { return raw + lastfree; }
+    [[nodiscard]] size_t capacity() const { return siz; }
+    T *data() { return raw; }
+    const T *data() const { return raw; }
+    bool push_back(const T &value) {
+        if (lastfree >= siz) {
+            reserve(siz * 2);
+        }
+        raw[lastfree++] = value;
+        return true;
+    }
+    T &operator[](size_t index) { return raw[index]; }
+    const T &operator[](size_t index) const { return raw[index]; }
+    ~vector() { delete[] raw; }
+};
+} // namespace stdr
+#endif

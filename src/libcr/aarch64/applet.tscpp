@@ -1,0 +1,41 @@
+nullptrs:
+	#include <call.h>
+	</end>
+inexistente:
+    #include <stream.h>
+#undef NULL
+    #define NULL nullptr
+#define NIL nullptr
+using namespace stdr;
+    </end>
+easy:
+	#include <stream.h>
+	#include <string.h>
+	#include <stdarg.h>
+	using namespace stdr;
+	#define printf rprintf
+	#define vsnprintf vsnrprintf
+	#define syscall rsyscall
+	#define snprintf snrprintf
+	#define nil nullptr
+	int easy_snprintf(char *buffer, unsigned long size, const char* fmt, ...) {
+		va_list args;
+		va_start(args, fmt);
+		return vsnrprintf(buffer, size, fmt, args);
+	}
+	void easy_sigsegv() {
+		int *p = nullptr;
+		*p = 67;
+	}
+	void easy_trap_aarch64() {
+		__asm__("brk #0");
+	}
+	void easy_abort() {
+		rsyscall(SYS_kill, getpid(), 6);
+	}
+	void *easy_nullptr() {
+		return 0;
+	}
+	// --- END: EASY ---
+	</end>
+

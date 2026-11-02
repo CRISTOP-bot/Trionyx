@@ -1,0 +1,11 @@
+"ro.build" = "default"
+"ro.system.name" = "Trionyx"
+"ro.system.id" = "trionyx"
+"ro.system.vendor" = "pure"
+"ro.system.version" = "1.0.0"
+"ro.system.rdate" = "15/Oct/2026"
+"ro.system.bdate" = "2026-10-03 07:36 UTC"
+"ro.system.prettyname" = "Trionyx GNU/Linux"
+"ro.build.id" = "HsfvjTrionyx64CODEDbyTr1zz35vjCCCxzDFghJ"
+"ro.build.system" = "Debian GNU/Linux 13 (trixie) aarch64"
+

@@ -1,0 +1,13 @@
+
+[default_config]
+assembler = "gas"
+instruction_set = "arm64"
+
+[opts]
+diagnostics = true
+default_diagnostics = true
+compiler = "aarch64-linux-gnu-gcc"
+compile_flags_txt = [
+    "-x",
+    "assembler-with-cpp"
+]

@@ -1,0 +1,5 @@
+# Trionyx service list for system-init
+# First goes name.mode:path:..:arg1%arg2%arg3:..:env1%env2%env3
+auditd.daemon:/system/usr/sbin/auditd:..:-s%nochange:..:TERM=linux
+seatd.daemon:/system/usr/bin/seatd:..:-g%root:..:TERM=linux
+agetty.oneshot:/system/usr/sbin/agetty:..:-%34800%linux:..:TERM=linux

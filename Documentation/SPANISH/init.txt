@@ -1,0 +1,77 @@
+Trionyx/GNU Linux
+
+## Introducción ##
+El sistema de init de Trionyx, system-init (o sinit) es un sistema
+de inicialización centrado en la velocidad y simplicidad, evitando
+abstracciones complejas o innecesarias.
+Funciona montando unos sistemas de archivos previamente definidos en
+el código fuente, creando los directorios que no existen aún.
+En el modelo de arranque, se puede apreciar la gestión basíca de servicios
+así como estructuras 'Data' y vectores, pueden ser modificables sin ningun 
+tipo de conflicto (aún).
+Asi tambien, se puede apreciar un sistema de propiedades con subsistemas 
+getprop y setprop respectivamente. El sistema de propiedades NO depende 
+de un núcleo personalizado, al contrario, están hechas para informar 
+estado del sistema global, como la versión o el nombre. Todos estos 
+subsistemas son necesarios para que el init de Trionyx.
+Se sabe que aún no está a la altura de otros sistemas de init; debido
+al estádo prematuro del sistema, sigue muy abierta la disponibilidad de 
+bugs (fallos), así como errores o cosas que no funcionan.
+En cuanto a la estructura de la declaración de servicios y acciones, tiene
+la siguiente sintaxis:
+
+1 tipo nombre {
+2     dato
+3     dato
+4     dato
+5     dato
+6 }
+
+**Nota: El modo y acomodamiento no es permanente, puede cambiar según las 
+versiónes del sistema de init. 
+Debido a la distribución de código abierto de system-init, usted puede
+modificar el árbol de código de system-init y tomar componentes mientras
+respete la licencia GPL-v2-only.
+En el modelo actual de process() (en el árbol fuente, 'src/init/init_parser.cpp')
+usted puede observar en el varios tipos handlers (manejadores) para distintas
+opciones del campo *"tipo", es así que en el árbol fuente de está versión (1.0)
+se puede observar únicamente el handler para el tipo 'service' (servicio)
+que es absolutamente importante para el arranque del sistema, para que este
+pueda lanzar servicios declarados en el.
+
+### Declaracion de servicios ###
+
+El formato de la declaración de servicios es el siguiente
+
+1   service nombre {
+2       ejecutable
+3       argumento1::argumento2::...
+4       ve1::ve2::...
+5       modo (oneshot/daemon)
+6   }
+
+Donde veX es una variable de entorno. Cada argumento va separado por
+'::', por ejemplo, si se quiere 'ejemplo -a -b' con las variables de 
+entorno 'EJEMPLO=trionyx' y 'MODE=hi', en modo oneshot usted puede hacer
+    service ejemplo {
+        /bin/ejemplo
+        -a::-b
+        EJEMPLO=trionyx::MODE=hi
+        oneshot
+    }
+Donde los modos oneshot (una vez) y daemon (demonio) se comportan de la 
+siguiente manera:
+
+    Oneshot: El servicio lanzado es supervisado por el proceso de
+    init hasta que este muere, el proceso de init captura su salida
+    y la anuncia en el buffer del núcleo.
+
+    Daemon: El servicio lanzado es supervisado por el proceso de init,
+    si este muere, es resucitado hasta un máximo de 4 veces sin importar
+    el servicio. Si llega a fallar en el arranque, el sistema suspenderá
+    el arranque, normalmente imprimiendo un mensaje de error si es
+    posible en el entorno.
+
+## Notas ###
+Advertencia: El sistema sigue en progreso Y propenso a fallos. No es 
+recomendable guardar archivos importantes o datos sensibles.

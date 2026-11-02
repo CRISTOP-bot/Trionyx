@@ -1,0 +1,82 @@
+root@localhost: / # ls
+bin   dev  home  lib64       media  opt   root  sbin  sys  usr
+boot  etc  lib   lost+found  mnt    proc  run   srv   tmp  var
+root@localhost: / # broadcast send system:init "Panic"
+[ 2424.5367] Kernel panic - not syncing: Attempted to kill init! exitcode=0x00000009
+[ 2424.5367] CPU: 0 PID: 1 Comm: systemd Not tainted 5.4.0-42-generic #46-Ubuntu
+[ 2424.5367] Hardware name: Intel Corporation 440BX Desktop Reference Platform/440BX Desktop Reference Platform, BIOS 6.00 PG 04/01/2004
+[ 2424.5367] Call Trace:
+[ 2424.5367]  dump_stack+0x63/0x8b
+[ 2424.5367]  panic+0xe7/0x25c
+[ 2424.5367]  do_exit+0x2e5/0x3f0
+[ 2424.5367]  do_group_exit+0x44/0xa0
+[ 2424.5367]  get_signal+0x1a6/0x2c0
+[ 2424.5367]  do_signal+0x1a/0x20
+[ 2424.5367]  do_notify_resume+0x1e/0x30
+[ 2424.5367] ---[ end Kernel panic - not syncing: Attempted to kill init! exitcode=0x00000009 ]---
+
+--- Next boot : ---
+
+[ 1.4356]: Run /lib/systemd/systemd as init process
+[ 1.4356]: systemd 245.4-4ubuntu3.13 running in system mode. (+PAM +AUDIT +SELINUX +IMA +APPARMOR +SMACK +SYSVINIT +UTMP +LIBCRYPTSETUP +GCRYPT +GNUTLS +ACL +XZ +LZ4 +SECCOMP +BLKID +ELFUTILS +KMOD -IDN2 -IDN -PCRE2 default-hierarchy=unified)
+[ 1.4356]: Detected architecture x86-64.
+[ 1.4356]: Fatal error: Corrupted filesystem. Running fsck...
+[ 1.4356]: fsck from util-linux 2.34
+[ 1.4356]: e2fsck 1.45.5 (07-Jan-2020)
+[ 1.4356]: /dev/sda1: clean, 123456/123456 files, 1234567/12345678 blocks
+[ 1.4356]: fsck completed successfully.
+[ 1.4356]: Error: Process fsck got signaled: (11)
+[ 1.4356]: fsck failed with exit status 1.
+[ 1.4356]: Failed to start File System Check on /dev/sda1.
+[ 1.4356]  Bailing out, Your'e on your own.
+[ 1.4356]: Starting emergency shell...
+[ 1.4356]: Press Enter to continue.
+
+root@{unknown}: / #
+root@{unknown}: / # ls
+bash: Segmebnt fault (core dumped)
+root@{unknown}: / # mount -t devtmpfs devtmpfs /dev
+mount: unknown error: see dmesg for more information
+root@{unknown}: / # dmesg
+[  0.000000] Initializing cgroup subsys cpuset
+[  0.000000] Initializing cgroup subsys cpu
+[  0.000000] Initializing cgroup subsys cpuacct
+[  0.000000] Linux version 5.4.0-42-generic (buildd@lcy01-amd64-027) (gcc version 9.3.0 (Ubuntu 9.3.0-17ubuntu1~20.04)) #46-Ubuntu SMP Fri Jul 10 00:24:02 UTC 2020 (Ubuntu 5.4.0-42.46-generic 5.4.44)
+[  0.000000] Command line: BOOT_IMAGE=/boot/vmlinuz-5.4.0-42-generic root=UUID=12345678-1234-1234-1234-123456789abc ro quiet splash
+[  0.000000] KERNEL supported cpus:
+[  0.000000]   Intel GenuineIntel
+[  0.000000]   AMD AuthenticAMD
+[  0.000000]   Centaur CentaurHauls
+[  0.000000] x86/fpu: Supporting XSAVE feature 0
+[  0.000000] x86/fpu: Supporting XSAVE feature 1
+[  0.000000] x86/fpu: Supporting XSAVE feature 2
+[  0.000000] x86/fpu: Supporting XSAVE feature 3
+[  0.000000] x86/fpu: Supporting XSAVE feature 4
+[  0.000000] x86/fpu: Supporting XSAVE feature 5
+[  0.000000] x86/fpu: xstate_offset[2]: 576, xstate_sizes[2]: 256
+[  0.000000] x86/fpu: Enabled xstate features 0x7, context size is 832 bytes, using 'compacted' format.
+[  0.000000] BIOS-provided physical RAM map:
+[  0.000000] BIOS-e820: [mem 0x0000000000000000-0x000000000009ffff] usable
+[  0.000000] BIOS-e820: [mem 0x0000000000100000-0x00000000bfffffff] usable
+[  0.000000] BIOS-e820: [mem 0x00000000c0000000-0x00000000cfffffff] reserved
+[  0.000000] BIOS-e820: [mem 0x00000000d0000000-0x00000000dfffffff] reserved
+[  0.000000] BIOS-e820: [mem 0x00000000e8000000-0x00000000efffffff] reserved
+[  0.000000] BIOS-e820: [mem 0x00000000f8001000-0x00000000ffffffff] reserved
+[  0.000001] NX (Execute Disable) protection: active
+[  0.000001] efi: EFI v2.40 by American Meg
+--- ERROR: CORRUPTED KMSG TRACE (?) ---
+bash: aborted (core dumped)
+root@{unknown}: / # mount -t devtmpfs devtmpfs /dev
+mount: No su
+[ 23.482747] Kernel panic - not syncing: Several Hardware Failure 
+[ 23.482747] CPU: 0 PID: 1 Comm: systemd Not tainted 5.4.0-42-generic #46-Ubuntu
+[ 23.482747] Hardware name: Intel Corporation 440BX Desktop Reference Platform/440BX Desktop Reference Platform, BIOS 6.00 PG 04/01/2004
+[ 23.482747] Call Trace:
+[ 23.482747]  dump_stack+0x63/0x8b
+[ 23.482747]  panic+0xe7/0x25c
+[ 23.482747]  do_exit+0x2e5/0x3f0
+[ 23.482747]  do_group_exit+0x44/0xa0
+[ 23.482747]  get_signal+0x1a6/0x2c0
+[ 23.482747]  do_signal+0x1a/0x20
+[ 23.482747]  do_notify_resume+0x1e/0x30
+[ 23.482747] ---[ end Kernel panic - not syncing: Several Hardware Failure ]---
