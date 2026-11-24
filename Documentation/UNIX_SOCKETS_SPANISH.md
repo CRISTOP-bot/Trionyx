@@ -77,3 +77,5 @@ c++ -std=c++23 -Wall -Wextra -Werror -pedantic -pthread \
   -Iinclude tests/unix_socket_test.cpp -o /tmp/unix_socket_test
 /tmp/unix_socket_test
 ```
+
+El mismo comando se ejecuta automáticamente en el CI de GitHub Actions con GCC y Clang; el workflow está en `.github/workflows/ci.yml`. También cubre una conexión cliente-servidor real sobre una ruta temporal de socket.

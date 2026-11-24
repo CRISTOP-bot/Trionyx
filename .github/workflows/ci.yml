@@ -1,0 +1,35 @@
+name: CI
+
+on:
+  push:
+    branches: [dev, main]
+  pull_request:
+    branches: [dev, main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  unix-socket-tests:
+    name: Unix socket tests (${{ matrix.compiler }})
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        compiler: [g++, clang++]
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Compile tests
+        env:
+          CXX: ${{ matrix.compiler }}
+        run: |
+          "$CXX" --version
+          "$CXX" -std=c++23 -Wall -Wextra -Werror -pedantic -pthread \
+            -Iinclude tests/unix_socket_test.cpp \
+            -o /tmp/trionyx-unix-socket-test
+
+      - name: Run tests
+        run: /tmp/trionyx-unix-socket-test
