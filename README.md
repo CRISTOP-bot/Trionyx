@@ -40,6 +40,8 @@ int main() {
 
 El protocolo de trama tiene un tamaño de 32 bits en orden de red, seguido por los bytes del payload. La referencia completa está en [`Documentation/UNIX_SOCKETS_SPANISH.md`](Documentation/UNIX_SOCKETS_SPANISH.md).
 
+El servicio `sysdata` de init añade `GET`/`SET` y `GETP`/`SETP` por `/dev/socket/sysdata`, con claves validadas (sin espacios, ni `.` al inicio/final), permisos por PID verificado mediante credenciales del socket y una proyección de consulta en `/dev/reg`. Consulta [`Documentation/SYSDATA_SPANISH.md`](Documentation/SYSDATA_SPANISH.md); el punto de entrada de init debe invocar `run_init_service()` para activarlo.
+
 El helper de salida `stdr::out` de `include/types.h` también acepta rutas y contenido `std::string`; las rutas con NUL incrustado se rechazan con `EINVAL`.
 
 ### Compilar y ejecutar las pruebas
@@ -52,7 +54,13 @@ c++ -std=c++23 -Wall -Wextra -Werror -pedantic -pthread \
 /tmp/trionyx-unix-socket-test
 ```
 
-Las pruebas cubren tramas binarias, NUL dentro de `std::string`, el límite de tamaño, una comunicación cliente-servidor y la salida a archivo de `stdr::out` con una ruta `std::string`.
+Las pruebas cubren tramas binarias, NUL dentro de `std::string`, el límite de tamaño, una comunicación cliente-servidor, la salida a archivo de `stdr::out` con una ruta `std::string` y el protocolo `sysdata` (permisos, claves y limpieza por PID).
+
+```sh
+c++ -std=c++23 -Wall -Wextra -Werror -pedantic -pthread \
+  -Iinclude tests/sysdata_test.cpp -o /tmp/trionyx-sysdata-test
+/tmp/trionyx-sysdata-test
+```
 
 ```sh
 c++ -std=c++23 -Wall -Wextra -Werror -pedantic \
