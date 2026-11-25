@@ -1,0 +1,10 @@
+build/
+.cache/
+.clang-tidy-backup/
+.test.srv
+*.o
+*.a
+*.so
+*.out
+*.img
+.env
