@@ -1,76 +1,84 @@
 # Sockets UNIX sencillos para Trionyx
 
-API header-only para sockets locales `AF_UNIX` de tipo `SOCK_STREAM`. Usa la biblioteca estándar de C++ y las interfaces POSIX del sistema; no agrega dependencias externas. Está en `trionyx::ipc` y evita `std::array`.
+API header-only para sockets locales POSIX `AF_UNIX` de tipo `SOCK_STREAM`. No agrega dependencias externas y evita `std::array`. Está en `trionyx::ipc`.
 
-## Conectar un cliente
+## Cliente con `std::string`
 
 ```cpp
 #include "trionyx/unix_socket.hpp"
+#include <string>
 
 int main() {
     trionyx::ipc::UnixStream socket;
-    if (!socket.connect("/run/trionyx/service.sock")) {
-        // Revisar errno para conocer la causa.
+    if (!socket.connect(std::string("/run/trionyx/service.sock"))) {
+        return 1; // Revisar errno.
+    }
+
+    const std::string request = "hola";
+    if (!trionyx::ipc::send_frame(socket, request)) {
         return 1;
     }
 
-    const char request[] = "hola";
-    if (!trionyx::ipc::send_frame(socket, request, sizeof(request) - 1)) {
+    std::string response;
+    if (!trionyx::ipc::receive_frame(socket, response)) {
         return 1;
     }
-
-    char response[256];
-    std::uint32_t response_size = 0;
-    if (!trionyx::ipc::receive_frame(socket, response, sizeof(response),
-                                     response_size)) {
-        return 1;
-    }
-    // response_size indica cuántos bytes son válidos; no se agrega '\0'.
+    // response.size() da el tamaño; puede contener NUL y no agrega terminador.
 }
 ```
 
-## Atender conexiones
+`send_frame` acepta `std::string`/`std::string_view` y conserva payloads binarios. También se puede recibir en un buffer fijo si se quiere evitar asignación dinámica:
+
+```cpp
+char response[256];
+std::uint32_t size = 0;
+if (!trionyx::ipc::receive_frame(socket, response, sizeof(response), size)) {
+    // Revisar errno.
+}
+```
+
+## Servidor
 
 ```cpp
 #include "trionyx/unix_socket.hpp"
-#include <cerrno>
+#include <string>
 #include <unistd.h>
 
 int main() {
-    const char* path = "/run/trionyx/service.sock";
+    const std::string path = "/run/trionyx/service.sock";
     trionyx::ipc::UnixServer server;
     if (!server.listen(path)) {
-        return 1; // errno contiene el error (por ejemplo, EADDRINUSE).
+        return 1; // errno contiene el error.
     }
 
-    int accept_error = 0;
-    trionyx::ipc::UnixStream client = server.accept(&accept_error);
+    trionyx::ipc::UnixStream client = server.accept();
     if (!client.valid()) {
         server.close();
-        ::unlink(path); // UnixServer no elimina la ruta automáticamente.
+        ::unlink(path.c_str()); // UnixServer no elimina la ruta automáticamente.
         return 1;
     }
 
-    char request[256];
-    std::uint32_t request_size = 0;
-    const bool ok = trionyx::ipc::receive_frame(
-        client, request, sizeof(request), request_size);
-
+    std::string request;
+    const bool ok = trionyx::ipc::receive_frame(client, request);
     server.close();
-    ::unlink(path); // Elimina solo la ruta que creó la aplicación.
+    ::unlink(path.c_str());
     return ok ? 0 : 1;
 }
 ```
 
-## Protocolo de trama
+`UnixStream::connect` y `UnixServer::listen` admiten `const char*` y `std::string`. Rutas con bytes NUL incrustados se rechazan con `EINVAL`.
 
-Cada mensaje lleva un entero sin signo de 32 bits con el tamaño del payload, en orden de red (big-endian), seguido por el payload binario. Se puede enviar cualquier byte, incluidos ceros. `send_frame` y `receive_frame` se ocupan de lecturas/escrituras parciales e interrupciones `EINTR`.
+## Protocolo y límites
 
-`receive_frame` devuelve `EMSGSIZE` si la trama no cabe en el buffer. En ese caso el cuerpo no se consume: cierra o descarta la conexión en vez de intentar leer otra trama del mismo flujo. Las funciones devuelven `false` en error y dejan el código POSIX en `errno`; no lanzan excepciones. El descriptor RAII de `UnixStream` cierra la conexión al destruirse.
+Cada trama contiene un entero sin signo de 32 bits con el tamaño del payload, en orden de red (big-endian), seguido por el payload binario. Las operaciones manejan lecturas/escrituras parciales e interrupciones `EINTR`.
 
-## Pruebas
+La sobrecarga `receive_frame(stream, string)` limita el payload a 16 MiB por defecto (`default_max_frame_size`). Se puede cambiar con `receive_frame(stream, string, max_size)`. Si se excede el límite, devuelve `false` y fija `errno` a `EMSGSIZE`; el cuerpo no se consume, así que descarta/cierra esa conexión. El buffer de string crece dinámicamente y una falla de asignación puede propagar una excepción estándar. La sobrecarga de buffer fijo no realiza esa asignación.
 
-Compilación y ejecución directa en Linux/POSIX, sin Meson ni bibliotecas externas adicionales:
+Los errores de socket devuelven `false` y se consultan en `errno`; las operaciones de `UnixStream` y `UnixServer` no lanzan excepciones. `UnixStream` cierra su descriptor al destruirse. El servidor no desvincula automáticamente la ruta del socket.
+
+## Pruebas y CI
+
+Compilación y ejecución en Linux/POSIX, sin dependencias externas adicionales:
 
 ```sh
 c++ -std=c++23 -Wall -Wextra -Werror -pedantic -pthread \
@@ -78,4 +86,4 @@ c++ -std=c++23 -Wall -Wextra -Werror -pedantic -pthread \
 /tmp/unix_socket_test
 ```
 
-El mismo comando se ejecuta automáticamente en el CI de GitHub Actions con GCC y Clang; el workflow está en `.github/workflows/ci.yml`. También cubre una conexión cliente-servidor real sobre una ruta temporal de socket.
+GitHub Actions ejecuta el mismo conjunto de pruebas con GCC y Clang en cada push a `dev` o `main` y en pull requests hacia esas ramas. El workflow está en `.github/workflows/ci.yml`.

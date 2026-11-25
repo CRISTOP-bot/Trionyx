@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
+#include <string>
 #include <thread>
 #include <sys/socket.h>
 #include <unistd.h>
@@ -64,9 +65,10 @@ static void test_server_client_round_trip() {
     CHECK(temporary_fd >= 0);
     CHECK(::close(temporary_fd) == 0);
     CHECK(::unlink(path) == 0);
+    const std::string socket_path(path);
 
     UnixServer server;
-    CHECK(server.listen(path));
+    CHECK(server.listen(socket_path));
     bool server_ok = false;
 
     std::thread worker([&]() {
@@ -76,34 +78,62 @@ static void test_server_client_round_trip() {
             return;
         }
 
-        char request[16] = {};
-        std::uint32_t request_size = 0;
-        if (!receive_frame(peer, request, sizeof(request), request_size) ||
-            request_size != 4 || std::memcmp(request, "ping", 4) != 0) {
+        std::string request;
+        if (!receive_frame(peer, request) || request != "ping") {
             return;
         }
-        server_ok = send_frame(peer, "pong", 4);
+        server_ok = send_frame(peer, std::string("pong"));
     });
 
     UnixStream client;
-    CHECK(client.connect(path));
-    CHECK(send_frame(client, "ping", 4));
+    CHECK(client.connect(socket_path));
+    CHECK(send_frame(client, std::string("ping")));
 
-    char response[16] = {};
-    std::uint32_t response_size = 0;
-    CHECK(receive_frame(client, response, sizeof(response), response_size));
-    CHECK(response_size == 4);
-    CHECK(std::memcmp(response, "pong", 4) == 0);
+    std::string response;
+    CHECK(receive_frame(client, response));
+    CHECK(response == "pong");
 
     worker.join();
     CHECK(server_ok);
     server.close();
-    CHECK(::unlink(path) == 0);
+    CHECK(::unlink(socket_path.c_str()) == 0);
+}
+
+static void test_string_payload_preserves_nul() {
+    int descriptors[2] = {-1, -1};
+    CHECK(::socketpair(AF_UNIX, SOCK_STREAM, 0, descriptors) == 0);
+
+    UnixStream sender{descriptors[0]};
+    UnixStream receiver{descriptors[1]};
+    const std::string payload("left\0right", 10);
+    CHECK(send_frame(sender, payload));
+
+    std::string output;
+    CHECK(receive_frame(receiver, output));
+    CHECK(output == payload);
+    CHECK(output.size() == 10);
+}
+
+static void test_string_frame_limit() {
+    int descriptors[2] = {-1, -1};
+    CHECK(::socketpair(AF_UNIX, SOCK_STREAM, 0, descriptors) == 0);
+
+    UnixStream sender{descriptors[0]};
+    UnixStream receiver{descriptors[1]};
+    CHECK(send_frame(sender, std::string("large")));
+
+    std::string output = "old value";
+    errno = 0;
+    CHECK(!receive_frame(receiver, output, 4));
+    CHECK(errno == EMSGSIZE);
+    CHECK(output.empty());
 }
 
 int main() {
     test_binary_frames();
     test_oversized_frame_rejected();
     test_server_client_round_trip();
+    test_string_payload_preserves_nul();
+    test_string_frame_limit();
     return 0;
 }

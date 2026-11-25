@@ -4,41 +4,41 @@ Trionyx es una distribución GNU/Linux x86_64 en desarrollo. Este repositorio ta
 
 ## API sencilla de sockets UNIX
 
-La API header-only está en `include/trionyx/unix_socket.hpp`, dentro del espacio de nombres `trionyx::ipc`. Permite abrir conexiones locales `AF_UNIX` de tipo `SOCK_STREAM` sin bibliotecas externas ni `std::array`.
+La API header-only está en `include/trionyx/unix_socket.hpp`, dentro del espacio de nombres `trionyx::ipc`. Usa sockets locales POSIX `AF_UNIX` de tipo `SOCK_STREAM`, sin dependencias externas ni `std::array`.
 
-Incluye:
-
-- `UnixStream`: conexión cliente, envío y recepción exactos y propiedad RAII del descriptor.
-- `UnixServer`: enlazar y escuchar en una ruta de socket, y aceptar clientes.
-- `send_frame` / `receive_frame`: protocolo binario con longitud de 32 bits en orden de red seguida por el payload.
-- Reintentos ante `EINTR`; los errores se comunican con `false` y `errno`, sin excepciones.
-
-### Ejemplo de cliente
+### Uso rápido con `std::string`
 
 ```cpp
 #include "trionyx/unix_socket.hpp"
-#include <cstdint>
+#include <string>
 
 int main() {
     trionyx::ipc::UnixStream socket;
-    if (!socket.connect("/run/trionyx/service.sock")) {
-        return 1; // Consultar errno.
+    if (!socket.connect(std::string("/run/trionyx/service.sock"))) {
+        return 1; // Revisar errno.
     }
 
-    const char request[] = "hola";
-    if (!trionyx::ipc::send_frame(socket, request, sizeof(request) - 1)) {
+    const std::string request = "hola";
+    if (!trionyx::ipc::send_frame(socket, request)) {
         return 1;
     }
 
-    char response[256];
-    std::uint32_t size = 0;
-    if (!trionyx::ipc::receive_frame(socket, response, sizeof(response), size)) {
+    std::string response;
+    if (!trionyx::ipc::receive_frame(socket, response)) {
         return 1;
     }
-    // `size` es la cantidad de bytes válidos; el payload no termina en NUL.
+    // response contiene el payload y puede incluir bytes NUL.
     return 0;
 }
 ```
+
+- `UnixStream::connect` y `UnixServer::listen` aceptan `const char*` o `std::string`.
+- `send_frame` acepta `std::string`, `std::string_view` y literales; conserva los bytes NUL de strings.
+- `receive_frame` puede escribir directo en un `std::string`; por defecto limita cada trama a 16 MiB. Pasa un límite explícito si necesitas otro tamaño.
+- La sobrecarga de buffer (`void*`, capacidad y tamaño recibido) sigue disponible para evitar asignaciones dinámicas.
+- `UnixStream` posee el descriptor y lo cierra automáticamente. Las funciones POSIX fallidas devuelven `false` y dejan el error en `errno`; el crecimiento del string recibido puede lanzar una excepción de asignación.
+
+El protocolo de trama tiene un tamaño de 32 bits en orden de red, seguido por los bytes del payload. La referencia completa está en [`Documentation/UNIX_SOCKETS_SPANISH.md`](Documentation/UNIX_SOCKETS_SPANISH.md).
 
 ### Compilar y ejecutar las pruebas
 
@@ -50,15 +50,11 @@ c++ -std=c++23 -Wall -Wextra -Werror -pedantic -pthread \
 /tmp/trionyx-unix-socket-test
 ```
 
-Las pruebas cubren payload binario (incluidos bytes NUL), tramas vacías, rechazo de tramas que exceden el buffer y una ida y vuelta real entre servidor y cliente.
+Las pruebas cubren tramas binarias, NUL dentro de `std::string`, el límite de tamaño y una comunicación cliente-servidor.
 
 ### CI
 
-GitHub Actions compila y ejecuta estas pruebas en cada push a `dev` o `main` y en pull requests hacia esas ramas, usando GCC y Clang. El workflow está en `.github/workflows/ci.yml`.
-
-### Documentación ampliada
-
-Consulta [`Documentation/UNIX_SOCKETS_SPANISH.md`](Documentation/UNIX_SOCKETS_SPANISH.md) para ver el protocolo, ejemplos de servidor y cliente, y el comportamiento ante errores.
+GitHub Actions compila y ejecuta las pruebas en cada push a `dev` o `main` y en pull requests hacia esas ramas, usando GCC y Clang. El workflow está en `.github/workflows/ci.yml`.
 
 ## Estado del proyecto
 

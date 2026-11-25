@@ -6,11 +6,15 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <string>
+#include <string_view>
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <unistd.h>
 
 namespace trionyx::ipc {
+
+inline constexpr std::uint32_t default_max_frame_size = 16U * 1024U * 1024U;
 
 namespace detail {
 
@@ -107,6 +111,15 @@ public:
 
         fd_ = fd;
         return true;
+    }
+
+    bool connect(const std::string& path) noexcept {
+        if (path.find('\0') != std::string::npos) {
+            close();
+            errno = EINVAL;
+            return false;
+        }
+        return connect(path.c_str());
     }
 
     bool valid() const noexcept { return fd_ >= 0; }
@@ -233,6 +246,15 @@ public:
         return true;
     }
 
+    bool listen(const std::string& path, int backlog = 16) noexcept {
+        if (path.find('\0') != std::string::npos) {
+            close();
+            errno = EINVAL;
+            return false;
+        }
+        return listen(path.c_str(), backlog);
+    }
+
     UnixStream accept(int* error_code = nullptr) noexcept {
         if (fd_ < 0) {
             if (error_code != nullptr) {
@@ -307,6 +329,16 @@ inline bool send_frame(UnixStream& stream, const void* payload,
     return size == 0 || stream.send_all(payload, size);
 }
 
+// Convenient binary-safe overload for std::string and string literals.
+inline bool send_frame(UnixStream& stream, std::string_view payload) noexcept {
+    if (payload.size() > UINT32_MAX) {
+        errno = EMSGSIZE;
+        return false;
+    }
+    return send_frame(stream, payload.data(),
+                      static_cast<std::uint32_t>(payload.size()));
+}
+
 inline bool receive_frame(UnixStream& stream, void* buffer,
                           std::uint32_t capacity,
                           std::uint32_t& received_size) noexcept {
@@ -326,6 +358,31 @@ inline bool receive_frame(UnixStream& stream, void* buffer,
     }
 
     received_size = frame_size;
+    return true;
+}
+
+// Reads a frame directly into a std::string. The default cap avoids allocating
+// unbounded memory from an untrusted peer. On EMSGSIZE, the frame body remains
+// unread, so the caller should discard/close the stream.
+inline bool receive_frame(UnixStream& stream, std::string& payload,
+                          std::uint32_t max_size = default_max_frame_size) {
+    payload.clear();
+    std::uint32_t network_size = 0;
+    if (!stream.receive_exact(&network_size, sizeof(network_size))) {
+        return false;
+    }
+
+    const std::uint32_t frame_size = ntohl(network_size);
+    if (frame_size > max_size) {
+        errno = EMSGSIZE;
+        return false;
+    }
+
+    payload.resize(frame_size);
+    if (frame_size != 0 && !stream.receive_exact(payload.data(), frame_size)) {
+        payload.clear();
+        return false;
+    }
     return true;
 }
 
