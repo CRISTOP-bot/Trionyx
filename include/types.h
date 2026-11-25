@@ -1,6 +1,7 @@
 #ifndef PRINTK
 #define PRINTK
 #include <builtin.h>
+#include <cerrno>
 #include <cstdarg>
 #include <cstdint>
 #include <cstdio>
@@ -35,10 +36,19 @@ class out {
     int fd;
     std::string buffer;
 
+    static int open_path(const std::string &path) noexcept {
+        if (path.find('\0') != std::string::npos) {
+            errno = EINVAL;
+            return -1;
+        }
+        return open(path.c_str(), O_WRONLY | O_APPEND);
+    }
+
   public:
     out() { fd = open("/dev/kmsg", O_WRONLY | O_APPEND); }
     out(int a) : fd(a) {}
     out(const char *kmsg) : fd(open(kmsg, O_WRONLY | O_APPEND)) {}
+    explicit out(const std::string &kmsg) : fd(open_path(kmsg)) {}
     [[nodiscard]] bool verify() const { return fd >= 0; }
     friend void closefd(stdr::out &obj);
     int vn(int8_t severity, const char *fmt, va_list args) const {
@@ -76,6 +86,9 @@ class out {
             buffer.reserve(string_buffer_len);
         }
         return *this;
+    }
+    out &operator<<(const std::string &value) {
+        return *this << std::string_view(value);
     }
     out &operator<<(char c) {
         buffer.append(1, c);
