@@ -7,8 +7,10 @@
 #include <csignal>
 #include <cstddef>
 #include <cstdint>
+#include <cstdio>
 #include <cstring>
 #include <fcntl.h>
+#include <limits>
 #include <poll.h>
 #include <string>
 #include <string_view>
@@ -49,6 +51,7 @@ struct ProcessKeyValue {
     std::string key;
     std::string value;
     pid_t pid;
+    std::uint64_t start_time_ticks;
 };
 
 namespace detail {
@@ -228,6 +231,105 @@ inline bool receive_line(UnixStream& stream, std::string& line) {
     }
 }
 
+struct ProcessIdentity {
+    pid_t pid = -1;
+    std::uint64_t start_time_ticks = 0;
+    char state = '\0';
+};
+
+inline bool process_identity(pid_t pid, ProcessIdentity& identity) noexcept {
+    if (pid <= 0) {
+        errno = EINVAL;
+        return false;
+    }
+    char path[64] = {};
+    const int path_length = std::snprintf(path, sizeof(path), "/proc/%ld/stat",
+                                          static_cast<long>(pid));
+    if (path_length <= 0 || static_cast<std::size_t>(path_length) >= sizeof(path)) {
+        errno = EINVAL;
+        return false;
+    }
+    const int fd = ::open(path, O_RDONLY | O_CLOEXEC);
+    if (fd < 0) {
+        return false;
+    }
+    char buffer[4096] = {};
+    ssize_t length;
+    do {
+        length = ::read(fd, buffer, sizeof(buffer) - 1);
+    } while (length < 0 && errno == EINTR);
+    const int read_errno = errno;
+    (void)::close(fd);
+    if (length <= 0) {
+        if (length == 0) {
+            errno = EIO;
+        } else {
+            errno = read_errno;
+        }
+        return false;
+    }
+
+    // comm is parenthesized but may itself contain spaces or ')'. Use the last
+    // ')' to begin parsing at field 3, then read field 22 (starttime).
+    std::size_t close_paren = static_cast<std::size_t>(length);
+    while (close_paren > 0 && buffer[close_paren - 1] != ')') {
+        --close_paren;
+    }
+    if (close_paren == 0 || close_paren + 1 >= static_cast<std::size_t>(length)) {
+        errno = EINVAL;
+        return false;
+    }
+    std::size_t position = close_paren + 1;
+    char state = '\0';
+    std::uint64_t start_ticks = 0;
+    for (unsigned field = 3; field <= 22; ++field) {
+        while (position < static_cast<std::size_t>(length) &&
+               buffer[position] == ' ') {
+            ++position;
+        }
+        const std::size_t begin = position;
+        while (position < static_cast<std::size_t>(length) &&
+               buffer[position] != ' ' && buffer[position] != '\n') {
+            ++position;
+        }
+        if (begin == position) {
+            errno = EINVAL;
+            return false;
+        }
+        if (field == 3) {
+            if (position - begin != 1) {
+                errno = EINVAL;
+                return false;
+            }
+            state = buffer[begin];
+        } else if (field == 22) {
+            for (std::size_t index = begin; index < position; ++index) {
+                const unsigned char digit =
+                    static_cast<unsigned char>(buffer[index]);
+                if (digit < '0' || digit > '9') {
+                    errno = EINVAL;
+                    return false;
+                }
+                const std::uint64_t value = digit - '0';
+                if (start_ticks >
+                    (std::numeric_limits<std::uint64_t>::max() - value) /
+                        static_cast<std::uint64_t>(10)) {
+                    errno = ERANGE;
+                    return false;
+                }
+                start_ticks = start_ticks * 10 + value;
+            }
+        }
+    }
+    identity = ProcessIdentity{pid, start_ticks, state};
+    return true;
+}
+
+inline bool same_process(pid_t left_pid, std::uint64_t left_start_time,
+                         pid_t right_pid, std::uint64_t right_start_time) noexcept {
+    return left_pid == right_pid && left_start_time == right_start_time;
+}
+
 inline bool peer_pid(int fd, pid_t& pid) noexcept {
 #if defined(SO_PEERCRED)
     struct PeerCredentials {
@@ -253,7 +355,7 @@ inline bool peer_pid(int fd, pid_t& pid) noexcept {
 } // namespace detail
 
 // Keep exactly one instance in init. The normal table survives client exits;
-// the process table is pruned when its owning PID no longer exists.
+// process table is bound to PID plus /proc starttime to survive PID reuse.
 class Store {
 public:
     explicit Store(pid_t init_pid = 1,
@@ -303,10 +405,17 @@ public:
         if (requester_pid <= 0 || !detail::valid_key(key)) {
             return Result::invalid;
         }
+        detail::ProcessIdentity requester_identity;
+        if (!detail::process_identity(requester_pid, requester_identity) ||
+            requester_identity.state == 'Z' || requester_identity.state == 'X') {
+            return Result::permission_denied;
+        }
         prune_dead_processes();
         for (const ProcessKeyValue& entry : process_values_) {
             if (entry.key == key) {
-                if (entry.pid != requester_pid) {
+                if (!detail::same_process(entry.pid, entry.start_time_ticks,
+                                          requester_identity.pid,
+                                          requester_identity.start_time_ticks)) {
                     return Result::permission_denied;
                 }
                 value = entry.value;
@@ -322,26 +431,42 @@ public:
             !detail::valid_value(value)) {
             return Result::invalid;
         }
+        detail::ProcessIdentity requester_identity;
+        if (!detail::process_identity(requester_pid, requester_identity) ||
+            requester_identity.state == 'Z' || requester_identity.state == 'X') {
+            return Result::permission_denied;
+        }
         prune_dead_processes();
         for (ProcessKeyValue& entry : process_values_) {
             if (entry.key == key) {
-                if (entry.pid != requester_pid) {
+                if (!detail::same_process(entry.pid, entry.start_time_ticks,
+                                          requester_identity.pid,
+                                          requester_identity.start_time_ticks)) {
                     return Result::permission_denied;
                 }
                 entry.value.assign(value);
                 return Result::ok;
             }
         }
-        process_values_.push_back(
-            ProcessKeyValue{std::string(key), std::string(value), requester_pid});
+        process_values_.push_back(ProcessKeyValue{std::string(key),
+                                                  std::string(value),
+                                                  requester_pid,
+                                                  requester_identity.start_time_ticks});
         return Result::ok;
     }
 
     void prune_dead_processes() {
         std::size_t index = 0;
         while (index < process_values_.size()) {
-            errno = 0;
-            if (::kill(process_values_[index].pid, 0) < 0 && errno == ESRCH) {
+            const ProcessKeyValue& entry = process_values_[index];
+            detail::ProcessIdentity current;
+            const bool identity_read = detail::process_identity(entry.pid, current);
+            const bool definitely_gone = !identity_read && errno == ENOENT;
+            const bool stale_or_exited = identity_read &&
+                (current.state == 'Z' || current.state == 'X' ||
+                 !detail::same_process(entry.pid, entry.start_time_ticks,
+                                       current.pid, current.start_time_ticks));
+            if (definitely_gone || stale_or_exited) {
                 process_values_.erase(process_values_.begin() +
                                       static_cast<std::ptrdiff_t>(index));
             } else {
@@ -352,6 +477,12 @@ public:
 
     bool prepare_registry() const noexcept {
         return detail::ensure_tmpfs(registry_path_);
+    }
+
+    void refresh_registry_projection() const noexcept {
+        for (const KeyValue& entry : values_) {
+            (void)detail::mirror_value(registry_path_, entry.key, entry.value);
+        }
     }
 
     // For init's own tests/diagnostics. These vectors are authoritative; files
@@ -427,24 +558,21 @@ private:
         if (!detail::valid_key(key) || !detail::valid_value(value)) {
             return Result::invalid;
         }
-        // Init's production registry is always tmpfs, even if setkey() is
-        // called before the socket service starts. Unit-test stores can inject
-        // a temporary directory without mounting anything.
-        if (registry_path_ == default_registry_path && !prepare_registry()) {
-            return Result::io_error;
-        }
-        // Publish the projection first. If it fails, the authoritative vector
-        // stays unchanged. Once committed, no request ever reads /dev/reg.
-        if (!detail::mirror_value(registry_path_, key, value)) {
-            return Result::io_error;
-        }
+        // The in-memory table is authoritative. /dev/reg is a best-effort
+        // read-only projection: its mount, permissions, or write failures must
+        // never reject or roll back a property update.
+        bool updated = false;
         for (KeyValue& entry : values_) {
             if (entry.key == key) {
                 entry.value.assign(value);
-                return Result::ok;
+                updated = true;
+                break;
             }
         }
-        values_.push_back(KeyValue{std::string(key), std::string(value)});
+        if (!updated) {
+            values_.push_back(KeyValue{std::string(key), std::string(value)});
+        }
+        (void)detail::mirror_value(registry_path_, key, value);
         return Result::ok;
     }
 
@@ -467,8 +595,11 @@ public:
         : store_(store), socket_path_(std::move(socket_path)) {}
 
     bool run() {
-        if (!store_.prepare_registry() ||
-            !detail::ensure_parent_directory(socket_path_)) {
+        // /dev/reg is an optional query projection, not an authorization or
+        // availability dependency for the authoritative socket service.
+        (void)store_.prepare_registry();
+        store_.refresh_registry_projection();
+        if (!detail::ensure_parent_directory(socket_path_)) {
             return false;
         }
         struct stat socket_info {};

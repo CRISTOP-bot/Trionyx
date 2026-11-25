@@ -2,7 +2,7 @@
 
 `include/trionyx/sysdata.hpp` implementa el servicio de propiedades del proceso init. El estado autoritativo vive en dos `std::vector` dentro de `trionyx::sysdata::Store`; los clientes solo hablan con init por el socket local.
 
-> La rama actual no tiene un punto de entrada activo de init donde conectar automáticamente este servicio. El entrypoint de init debe invocar `trionyx::sysdata::run_init_service()` después de preparar `/dev`. Ese método monta/valida el tmpfs de registro y atiende `/dev/socket/sysdata` en bucle.
+> La rama actual no tiene un punto de entrada activo de init donde conectar automáticamente este servicio. El entrypoint de init debe invocar `trionyx::sysdata::run_init_service()` después de preparar `/dev`. El montaje de `/dev/reg` es best-effort y no bloquea el servicio de socket ni las operaciones de propiedades.
 
 ## Protocolo de texto por línea
 
@@ -42,16 +42,16 @@ trionyx::sysdata::setkey("init.ready", "yes");
 
 ## `GETP` y `SETP`
 
-El vector de proceso almacena `key`, `value` y `pid`. El PID se obtiene del kernel usando las credenciales del socket UNIX (`SO_PEERCRED` en Linux); nunca se acepta un PID del texto enviado por el cliente.
+El vector de proceso almacena `key`, `value`, `pid` y el tiempo de inicio del proceso leído de `/proc/<pid>/stat`. El PID se obtiene del kernel usando las credenciales del socket UNIX (`SO_PEERCRED` en Linux); nunca se acepta un PID del texto enviado por el cliente. La identidad se compara por PID y tiempo de inicio, así que un proceso nuevo que reutilice el mismo número de PID no hereda las propiedades del anterior.
 
 - El primer `SETP` de una clave la asocia al PID solicitante.
 - Solo ese PID puede volver a escribirla o leerla. Otro PID recibe `ERR PERMISSION_DENIED`.
-- Al morir el PID propietario, init elimina sus entradas de proceso durante el mantenimiento periódico (máximo alrededor de un segundo) o en la siguiente petición.
+- Al morir el proceso propietario, sus entradas se eliminan en el mantenimiento periódico o en la siguiente operación. Además, cada acceso valida el tiempo de inicio; no depende de que el mantenimiento corra de inmediato y la reutilización del PID no permite recuperar valores viejos.
 - El namespace `*P` solo usa el vector de proceso: no escribe ni lee `/dev/reg` y no aparece en el vector normal.
 
 ## Proyección de registro `/dev/reg`
 
-Al iniciar el servicio, `run_init_service()` prepara `/dev/reg` como tmpfs. Para cada `SET` y cada `setkey` exitoso se escribe una proyección de solo consulta:
+Al iniciar el servicio, `run_init_service()` intenta preparar `/dev/reg` como tmpfs y reproyecta las claves existentes. Para cada `SET` y cada `setkey` exitoso intenta escribir una proyección de solo consulta:
 
 ```text
 SET sys.boot.completed cebolla
@@ -63,7 +63,7 @@ se refleja en:
 /dev/reg/sys/boot/completed
 ```
 
-`GET` siempre consulta el vector en memoria, nunca el archivo. Editar, borrar o falsificar un archivo de `/dev/reg` no cambia el vector ni el resultado de `GET`. `SETP`/`GETP` no se reflejan allí. El archivo es una proyección/diagnóstico, no almacenamiento de confianza.
+`GET` siempre consulta el vector en memoria, nunca el archivo. Editar, borrar o falsificar un archivo de `/dev/reg` no cambia el vector ni el resultado de `GET`. `SETP`/`GETP` no se reflejan allí. El archivo es una proyección/diagnóstico, no almacenamiento de confianza. Que el montaje, directorio o archivo no exista o no se pueda escribir no rechaza ni revierte `SET`/`setkey`: el vector autoritativo se actualiza y la proyección se considera best-effort. La vista puede quedar incompleta si falla el filesystem.
 
 El servidor crea `/dev/socket/sysdata` con permisos de conexión local; la autorización se aplica por PID peer en cada conexión. `Store` atiende peticiones secuencialmente y está diseñado para ser propiedad de init.
 
@@ -75,4 +75,4 @@ c++ -std=c++23 -Wall -Wextra -Werror -pedantic -pthread \
 /tmp/trionyx-sysdata-test
 ```
 
-Las pruebas usan un directorio temporal para la proyección; no montan ni modifican `/dev`. Cubren límites de claves/valores, namespaces protegidos, manipulación de archivos de registro, persistencia normal tras salir un PID, limpieza del namespace de proceso y autenticación de las credenciales del peer. El CI ejecuta GCC y Clang.
+Las pruebas usan directorios temporales para la proyección; no montan ni modifican `/dev`. Cubren límites de claves/valores, namespaces protegidos, manipulación y fallo de la proyección sin bloquear actualizaciones, persistencia normal tras salir un PID, identidad de proceso ligada al tiempo de inicio, limpieza del namespace de proceso y autenticación de las credenciales del peer. El CI ejecuta GCC y Clang.

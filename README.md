@@ -40,7 +40,7 @@ int main() {
 
 El protocolo de trama tiene un tamaño de 32 bits en orden de red, seguido por los bytes del payload. La referencia completa está en [`Documentation/UNIX_SOCKETS_SPANISH.md`](Documentation/UNIX_SOCKETS_SPANISH.md).
 
-El servicio `sysdata` de init añade `GET`/`SET` y `GETP`/`SETP` por `/dev/socket/sysdata`, con claves validadas (sin espacios, ni `.` al inicio/final), permisos por PID verificado mediante credenciales del socket y una proyección de consulta en `/dev/reg`. Consulta [`Documentation/SYSDATA_SPANISH.md`](Documentation/SYSDATA_SPANISH.md); el punto de entrada de init debe invocar `run_init_service()` para activarlo.
+El servicio `sysdata` de init añade `GET`/`SET` y `GETP`/`SETP` por `/dev/socket/sysdata`, con claves validadas (sin espacios, ni `.` al inicio/final), identidad de proceso validada por PID y tiempo de inicio, y una proyección best-effort de consulta en `/dev/reg` que nunca condiciona la tabla autoritativa. Consulta [`Documentation/SYSDATA_SPANISH.md`](Documentation/SYSDATA_SPANISH.md); el punto de entrada de init debe invocar `run_init_service()` para activarlo.
 
 El helper de salida `stdr::out` de `include/types.h` también acepta rutas y contenido `std::string`; las rutas con NUL incrustado se rechazan con `EINVAL`.
 

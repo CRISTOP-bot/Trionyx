@@ -76,6 +76,36 @@ static void test_global_store_and_registry_projection() {
     CHECK(::rmdir(registry.c_str()) == 0);
 }
 
+static void test_projection_failure_does_not_reject_property_update() {
+    char directory[] = "/tmp/trionyx-registry-XXXXXX";
+    CHECK(::mkdtemp(directory) != nullptr);
+    const std::string blocked_path = std::string(directory) + "/not-a-directory";
+    {
+        std::ofstream blocker(blocked_path);
+        CHECK(blocker.good());
+        blocker << "keep this as a file";
+    }
+
+    trionyx::sysdata::Store store(1, blocked_path);
+    CHECK(store.set(200, "service.state", "ready") ==
+          trionyx::sysdata::Result::ok);
+
+    std::string value;
+    CHECK(store.get("service.state", value) ==
+          trionyx::sysdata::Result::ok);
+    CHECK(value == "ready");
+
+    CHECK(store.set(200, "service.state", "updated") ==
+          trionyx::sysdata::Result::ok);
+    CHECK(store.get("service.state", value) ==
+          trionyx::sysdata::Result::ok);
+    CHECK(value == "updated");
+    CHECK(store.values().size() == 1);
+
+    CHECK(::unlink(blocked_path.c_str()) == 0);
+    CHECK(::rmdir(directory) == 0);
+}
+
 static void test_process_scoped_values() {
     char directory[] = "/tmp/trionyx-registry-XXXXXX";
     CHECK(::mkdtemp(directory) != nullptr);
@@ -85,6 +115,17 @@ static void test_process_scoped_values() {
 
     CHECK(store.setp(owner, "session.token", "secret") ==
           trionyx::sysdata::Result::ok);
+    trionyx::sysdata::detail::ProcessIdentity owner_identity;
+    CHECK(trionyx::sysdata::detail::process_identity(owner, owner_identity));
+    CHECK(store.process_values().size() == 1);
+    CHECK(store.process_values().front().start_time_ticks ==
+          owner_identity.start_time_ticks);
+    CHECK(trionyx::sysdata::detail::same_process(
+        owner, owner_identity.start_time_ticks, owner,
+        owner_identity.start_time_ticks));
+    CHECK(!trionyx::sysdata::detail::same_process(
+        owner, owner_identity.start_time_ticks, owner,
+        owner_identity.start_time_ticks + 1));
     std::string value;
     CHECK(store.get("session.token", value) ==
           trionyx::sysdata::Result::not_found);
@@ -194,6 +235,7 @@ static void test_protocol_and_authenticated_peer_pid() {
 
 int main() {
     test_global_store_and_registry_projection();
+    test_projection_failure_does_not_reject_property_update();
     test_process_scoped_values();
     test_protocol_and_authenticated_peer_pid();
     return 0;
