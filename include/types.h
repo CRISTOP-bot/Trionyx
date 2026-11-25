@@ -1,3 +1,10 @@
+// SPDX-License-Identifier: GPL-2.0-only
+// file by: 'Tr1zz'
+// archivo hecho por: 'Tr1zz'
+// improved by: 'femboy'
+// mejorado por: 'femboy'
+
+
 #ifndef PRINTK
 #define PRINTK
 #include <builtin.h>
@@ -7,6 +14,7 @@
 #include <cstdio>
 #include <fcntl.h>
 #include <format>
+#include <istdlib.h>
 #include <string>
 #include <string_view>
 #include <unistd.h>
@@ -43,14 +51,19 @@ class out {
         }
         return open(path.c_str(), O_WRONLY | O_APPEND);
     }
+    bool is_ours{false};
 
   public:
-    out() { fd = open("/dev/kmsg", O_WRONLY | O_APPEND); }
-    out(int a) : fd(a) {}
+    out() {
+        fd = open("/dev/kmsg", O_WRONLY | O_APPEND);
+        is_ours = true;
+    }
+    out(int a) : fd(a) { is_ours = false; }
     out(const char *kmsg) : fd(open(kmsg, O_WRONLY | O_APPEND)) {}
     explicit out(const std::string &kmsg) : fd(open_path(kmsg)) {}
     [[nodiscard]] bool verify() const { return fd >= 0; }
     friend void closefd(stdr::out &obj);
+    friend int oflush(out &o);
     int vn(int8_t severity, const char *fmt, va_list args) const {
         std::string for_use;
         va_list len;
@@ -77,6 +90,7 @@ class out {
         return static_cast<int>(
             builtin::write_all(fd, for_use.data(), for_use.size()));
     }
+
     out &operator<<(std::string_view value) {
         buffer.append(value);
         if (buffer.find('\n') != std::string::npos ||
@@ -99,8 +113,13 @@ class out {
         }
         return *this;
     }
+
     out &operator=(int other_fd) {
+        if (is_ours) {
+            close(fd);
+        }
         fd = other_fd;
+        is_ours = false;
         return *this;
     }
     out &operator<<(fsh endl) {
@@ -167,8 +186,10 @@ class out {
 
     ~out() {
         builtin::write_all(fd, buffer.data(), buffer.size());
-        buffer.clear();
-        close(fd);
+        if (is_ours) {
+            buffer.clear();
+            close(fd);
+        }
     }
 };
 void closefd(stdr::out &obj) { close(obj.fd); }
@@ -191,6 +212,12 @@ nil_t nil;
 extern out kout;
 extern out cout;
 extern out cerr;
+
+#ifdef SYMBOL_K
+stdr::out kout;
+stdr::out cout = 1;
+stdr::out cerr, klog;
+#endif
 fsh endl;
 template <typename Tp> bool is_in(std::vector<Tp> &vec, const Tp &tofind) {
     for (Tp item : vec) {

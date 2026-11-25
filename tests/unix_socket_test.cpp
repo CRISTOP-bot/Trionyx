@@ -1,3 +1,7 @@
+// SPDX-License-Identifier: GPL-2.0-only
+// file by: 'femboy'
+// archivo hecho por: 'femboy'
+
 #include "trionyx/unix_socket.hpp"
 
 #include <cerrno>

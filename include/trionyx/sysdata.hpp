@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-2.0-only
+// File by: 'femboy'
+// Archivo creado por: 'femboy'
 #ifndef TRIONYX_SYSDATA_HPP
 #define TRIONYX_SYSDATA_HPP
 
@@ -29,19 +32,14 @@ namespace trionyx::sysdata {
 using trionyx::ipc::UnixServer;
 using trionyx::ipc::UnixStream;
 
-inline constexpr const char* default_socket_path = "/dev/socket/sysdata";
-inline constexpr const char* default_registry_path = "/dev/reg";
+inline constexpr const char *default_socket_path = "/dev/socket/sysdata";
+inline constexpr const char *default_registry_path = "/dev/reg";
 inline constexpr std::size_t max_key_size = 255;
 inline constexpr std::size_t max_value_size = 64U * 1024U;
-inline constexpr std::size_t max_request_size = max_key_size + max_value_size + 16;
+inline constexpr std::size_t max_request_size =
+    max_key_size + max_value_size + 16;
 
-enum class Result {
-    ok,
-    not_found,
-    permission_denied,
-    invalid,
-    io_error
-};
+enum class Result { ok, not_found, permission_denied, invalid, io_error };
 
 struct KeyValue {
     std::string key;
@@ -56,7 +54,8 @@ struct ProcessKeyValue {
 };
 
 // The only process-lifetime store objects. The PID-scoped records carry the
-// requested (pid, key, value) tuple plus start-time metadata to prevent PID reuse.
+// requested (pid, key, value) tuple plus start-time metadata to prevent PID
+// reuse.
 inline std::vector<KeyValue> normal_store;
 inline std::vector<ProcessKeyValue> private_store;
 inline pthread_mutex_t normal_store_mutex = PTHREAD_MUTEX_INITIALIZER;
@@ -65,9 +64,10 @@ inline pthread_mutex_t private_store_mutex = PTHREAD_MUTEX_INITIALIZER;
 namespace detail {
 
 class MutexGuard {
-public:
-    explicit MutexGuard(pthread_mutex_t& mutex) noexcept
-        : mutex_(&mutex), error_(::pthread_mutex_lock(mutex_)), locked_(error_ == 0) {}
+  public:
+    explicit MutexGuard(pthread_mutex_t &mutex) noexcept
+        : mutex_(&mutex), error_(::pthread_mutex_lock(mutex_)),
+          locked_(error_ == 0) {}
 
     ~MutexGuard() {
         if (locked_) {
@@ -75,13 +75,13 @@ public:
         }
     }
 
-    MutexGuard(const MutexGuard&) = delete;
-    MutexGuard& operator=(const MutexGuard&) = delete;
+    MutexGuard(const MutexGuard &) = delete;
+    MutexGuard &operator=(const MutexGuard &) = delete;
 
     bool locked() const noexcept { return locked_; }
 
-private:
-    pthread_mutex_t* mutex_;
+  private:
+    pthread_mutex_t *mutex_;
     int error_;
     bool locked_;
 };
@@ -92,8 +92,7 @@ inline bool valid_key(std::string_view key) noexcept {
         return false;
     }
     for (const unsigned char c : key) {
-        const bool valid = (c >= 'a' && c <= 'z') ||
-                           (c >= 'A' && c <= 'Z') ||
+        const bool valid = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
                            (c >= '0' && c <= '9') || c == '.' || c == '_' ||
                            c == '-';
         if (!valid) {
@@ -119,11 +118,11 @@ inline bool privileged_key(std::string_view key) noexcept {
     return key.starts_with("ro.") || key.starts_with("init.");
 }
 
-inline bool ensure_directory(const std::string& path) noexcept {
+inline bool ensure_directory(const std::string &path) noexcept {
     if (::mkdir(path.c_str(), 0755) < 0 && errno != EEXIST) {
         return false;
     }
-    struct stat info {};
+    struct stat info{};
     if (::lstat(path.c_str(), &info) < 0 || !S_ISDIR(info.st_mode) ||
         S_ISLNK(info.st_mode)) {
         errno = ENOTDIR;
@@ -132,11 +131,11 @@ inline bool ensure_directory(const std::string& path) noexcept {
     return true;
 }
 
-inline bool ensure_tmpfs(const std::string& path) noexcept {
+inline bool ensure_tmpfs(const std::string &path) noexcept {
     if (!ensure_directory(path)) {
         return false;
     }
-    struct statfs info {};
+    struct statfs info{};
     if (::statfs(path.c_str(), &info) < 0) {
         return false;
     }
@@ -149,7 +148,7 @@ inline bool ensure_tmpfs(const std::string& path) noexcept {
                    "mode=0755") == 0;
 }
 
-inline bool ensure_parent_directory(const std::string& path) noexcept {
+inline bool ensure_parent_directory(const std::string &path) noexcept {
     const std::size_t slash = path.find_last_of('/');
     if (slash == std::string::npos) {
         return true;
@@ -160,7 +159,7 @@ inline bool ensure_parent_directory(const std::string& path) noexcept {
     return ensure_directory(path.substr(0, slash));
 }
 
-inline bool write_all(int fd, const char* data, std::size_t size) noexcept {
+inline bool write_all(int fd, const char *data, std::size_t size) noexcept {
     std::size_t written = 0;
     while (written < size) {
         const ssize_t count = ::write(fd, data + written, size - written);
@@ -179,7 +178,7 @@ inline bool write_all(int fd, const char* data, std::size_t size) noexcept {
     return true;
 }
 
-inline bool mirror_value(const std::string& root, std::string_view key,
+inline bool mirror_value(const std::string &root, std::string_view key,
                          std::string_view value) noexcept {
     if (root.empty() || root.find('\0') != std::string::npos) {
         errno = EINVAL;
@@ -199,7 +198,8 @@ inline bool mirror_value(const std::string& root, std::string_view key,
     std::string leaf;
     while (begin < key.size()) {
         const std::size_t end = key.find('.', begin);
-        const std::size_t stop = (end == std::string_view::npos) ? key.size() : end;
+        const std::size_t stop =
+            (end == std::string_view::npos) ? key.size() : end;
         const std::string segment(key.substr(begin, stop - begin));
         ++segment_number;
         if (stop == key.size()) {
@@ -221,9 +221,9 @@ inline bool mirror_value(const std::string& root, std::string_view key,
     std::string file_path = directory;
     file_path.push_back('/');
     file_path += leaf;
-    const int fd = ::open(file_path.c_str(), O_WRONLY | O_CREAT | O_TRUNC |
-                                                   O_CLOEXEC | O_NOFOLLOW,
-                          0644);
+    const int fd =
+        ::open(file_path.c_str(),
+               O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC | O_NOFOLLOW, 0644);
     if (fd < 0) {
         return false;
     }
@@ -240,7 +240,7 @@ inline bool mirror_value(const std::string& root, std::string_view key,
     return true;
 }
 
-inline bool receive_line(UnixStream& stream, std::string& line) {
+inline bool receive_line(UnixStream &stream, std::string &line) {
     line.clear();
     for (;;) {
         char c = '\0';
@@ -267,7 +267,7 @@ struct ProcessIdentity {
     char state = '\0';
 };
 
-inline bool process_identity(pid_t pid, ProcessIdentity& identity) noexcept {
+inline bool process_identity(pid_t pid, ProcessIdentity &identity) noexcept {
     if (pid <= 0) {
         errno = EINVAL;
         return false;
@@ -275,7 +275,8 @@ inline bool process_identity(pid_t pid, ProcessIdentity& identity) noexcept {
     char path[64] = {};
     const int path_length = std::snprintf(path, sizeof(path), "/proc/%ld/stat",
                                           static_cast<long>(pid));
-    if (path_length <= 0 || static_cast<std::size_t>(path_length) >= sizeof(path)) {
+    if (path_length <= 0 ||
+        static_cast<std::size_t>(path_length) >= sizeof(path)) {
         errno = EINVAL;
         return false;
     }
@@ -305,7 +306,8 @@ inline bool process_identity(pid_t pid, ProcessIdentity& identity) noexcept {
     while (close_paren > 0 && buffer[close_paren - 1] != ')') {
         --close_paren;
     }
-    if (close_paren == 0 || close_paren + 1 >= static_cast<std::size_t>(length)) {
+    if (close_paren == 0 ||
+        close_paren + 1 >= static_cast<std::size_t>(length)) {
         errno = EINVAL;
         return false;
     }
@@ -356,11 +358,12 @@ inline bool process_identity(pid_t pid, ProcessIdentity& identity) noexcept {
 }
 
 inline bool same_process(pid_t left_pid, std::uint64_t left_start_time,
-                         pid_t right_pid, std::uint64_t right_start_time) noexcept {
+                         pid_t right_pid,
+                         std::uint64_t right_start_time) noexcept {
     return left_pid == right_pid && left_start_time == right_start_time;
 }
 
-inline bool peer_pid(int fd, pid_t& pid) noexcept {
+inline bool peer_pid(int fd, pid_t &pid) noexcept {
 #if defined(SO_PEERCRED)
     struct PeerCredentials {
         pid_t pid;
@@ -387,7 +390,7 @@ inline bool peer_pid(int fd, pid_t& pid) noexcept {
 // Keep exactly one instance in init. The normal table survives client exits;
 // process table is bound to PID plus /proc starttime to survive PID reuse.
 class Store {
-public:
+  public:
     // The init-facing view points at the two global stores. It owns no store.
     Store()
         : init_pid_(1), registry_path_(default_registry_path),
@@ -402,10 +405,10 @@ public:
           normal_mutex_(&local_normal_mutex_),
           private_mutex_(&local_private_mutex_) {}
 
-    Store(const Store&) = delete;
-    Store& operator=(const Store&) = delete;
+    Store(const Store &) = delete;
+    Store &operator=(const Store &) = delete;
 
-    Result get(std::string_view key, std::string& value) const {
+    Result get(std::string_view key, std::string &value) const {
         if (!detail::valid_key(key)) {
             return Result::invalid;
         }
@@ -413,7 +416,7 @@ public:
         if (!lock.locked()) {
             return Result::io_error;
         }
-        for (const KeyValue& entry : values_) {
+        for (const KeyValue &entry : values_) {
             if (entry.key == key) {
                 value = entry.value;
                 return Result::ok;
@@ -435,8 +438,9 @@ public:
         return set_value(key, value);
     }
 
-    // Init-only direct API; unlike protocol SET, this may write ro.* and init.*.
-    Result setkey(const char* key, const char* value) {
+    // Init-only direct API; unlike protocol SET, this may write ro.* and
+    // init.*.
+    Result setkey(const char *key, const char *value) {
         if (key == nullptr || value == nullptr) {
             return Result::invalid;
         }
@@ -447,14 +451,14 @@ public:
         return set_value(key, value);
     }
 
-    Result getp(pid_t requester_pid, std::string_view key,
-                std::string& value) {
+    Result getp(pid_t requester_pid, std::string_view key, std::string &value) {
         if (requester_pid <= 0 || !detail::valid_key(key)) {
             return Result::invalid;
         }
         detail::ProcessIdentity requester_identity;
         if (!detail::process_identity(requester_pid, requester_identity) ||
-            requester_identity.state == 'Z' || requester_identity.state == 'X') {
+            requester_identity.state == 'Z' ||
+            requester_identity.state == 'X') {
             return Result::permission_denied;
         }
         detail::MutexGuard lock(*private_mutex_);
@@ -462,7 +466,7 @@ public:
             return Result::io_error;
         }
         prune_dead_processes_locked();
-        for (const ProcessKeyValue& entry : process_values_) {
+        for (const ProcessKeyValue &entry : process_values_) {
             if (entry.key == key) {
                 const bool owns_entry = detail::same_process(
                     entry.pid, entry.start_time_ticks, requester_identity.pid,
@@ -485,7 +489,8 @@ public:
         }
         detail::ProcessIdentity requester_identity;
         if (!detail::process_identity(requester_pid, requester_identity) ||
-            requester_identity.state == 'Z' || requester_identity.state == 'X') {
+            requester_identity.state == 'Z' ||
+            requester_identity.state == 'X') {
             return Result::permission_denied;
         }
         detail::MutexGuard lock(*private_mutex_);
@@ -493,7 +498,7 @@ public:
             return Result::io_error;
         }
         prune_dead_processes_locked();
-        for (ProcessKeyValue& entry : process_values_) {
+        for (ProcessKeyValue &entry : process_values_) {
             if (entry.key == key) {
                 const bool owns_entry = detail::same_process(
                     entry.pid, entry.start_time_ticks, requester_identity.pid,
@@ -505,10 +510,9 @@ public:
                 return Result::ok;
             }
         }
-        process_values_.push_back(ProcessKeyValue{requester_pid,
-                                                  std::string(key),
-                                                  std::string(value),
-                                                  requester_identity.start_time_ticks});
+        process_values_.push_back(
+            ProcessKeyValue{requester_pid, std::string(key), std::string(value),
+                            requester_identity.start_time_ticks});
         return Result::ok;
     }
 
@@ -528,7 +532,7 @@ public:
         if (!lock.locked()) {
             return;
         }
-        for (const KeyValue& entry : values_) {
+        for (const KeyValue &entry : values_) {
             (void)detail::mirror_value(registry_path_, entry.key, entry.value);
         }
     }
@@ -585,8 +589,8 @@ public:
             if (second_space == std::string_view::npos) {
                 return error_response(Result::invalid);
             }
-            const std::string_view key = request.substr(
-                first_space + 1, second_space - first_space - 1);
+            const std::string_view key =
+                request.substr(first_space + 1, second_space - first_space - 1);
             const std::string_view value = request.substr(second_space + 1);
             const Result result = (command == "SET")
                                       ? set(requester_pid, key, value)
@@ -612,15 +616,17 @@ public:
         return "ERR INVALID\n";
     }
 
-private:
+  private:
     void prune_dead_processes_locked() {
         std::size_t index = 0;
         while (index < process_values_.size()) {
-            const ProcessKeyValue& entry = process_values_[index];
+            const ProcessKeyValue &entry = process_values_[index];
             detail::ProcessIdentity current;
-            const bool identity_read = detail::process_identity(entry.pid, current);
+            const bool identity_read =
+                detail::process_identity(entry.pid, current);
             const bool definitely_gone = !identity_read && errno == ENOENT;
-            const bool stale_or_exited = identity_read &&
+            const bool stale_or_exited =
+                identity_read &&
                 (current.state == 'Z' || current.state == 'X' ||
                  !detail::same_process(entry.pid, entry.start_time_ticks,
                                        current.pid, current.start_time_ticks));
@@ -642,7 +648,7 @@ private:
             return Result::io_error;
         }
         bool updated = false;
-        for (KeyValue& entry : values_) {
+        for (KeyValue &entry : values_) {
             if (entry.key == key) {
                 entry.value.assign(value);
                 updated = true;
@@ -663,21 +669,21 @@ private:
     pthread_mutex_t local_private_mutex_ = PTHREAD_MUTEX_INITIALIZER;
     pid_t init_pid_;
     std::string registry_path_;
-    std::vector<KeyValue>& values_;
-    std::vector<ProcessKeyValue>& process_values_;
-    pthread_mutex_t* normal_mutex_;
-    pthread_mutex_t* private_mutex_;
+    std::vector<KeyValue> &values_;
+    std::vector<ProcessKeyValue> &process_values_;
+    pthread_mutex_t *normal_mutex_;
+    pthread_mutex_t *private_mutex_;
 };
 
-inline Result setkey(Store& store, const char* key, const char* value) {
+inline Result setkey(Store &store, const char *key, const char *value) {
     return store.setkey(key, value);
 }
 
 // Serve one client at a time. The requester PID always comes from Linux
 // SO_PEERCRED; it is never accepted from the wire protocol.
 class Service {
-public:
-    explicit Service(Store& store,
+  public:
+    explicit Service(Store &store,
                      std::string socket_path = default_socket_path)
         : store_(store), socket_path_(std::move(socket_path)) {}
 
@@ -689,7 +695,7 @@ public:
         if (!detail::ensure_parent_directory(socket_path_)) {
             return false;
         }
-        struct stat socket_info {};
+        struct stat socket_info{};
         if (::lstat(socket_path_.c_str(), &socket_info) == 0) {
             if (!S_ISSOCK(socket_info.st_mode)) {
                 errno = EEXIST;
@@ -703,7 +709,7 @@ public:
             if (errno != ECONNREFUSED && errno != ENOENT) {
                 return false;
             }
-            struct stat current_socket_info {};
+            struct stat current_socket_info{};
             if (::lstat(socket_path_.c_str(), &current_socket_info) < 0 ||
                 current_socket_info.st_dev != socket_info.st_dev ||
                 current_socket_info.st_ino != socket_info.st_ino ||
@@ -730,7 +736,7 @@ public:
             return false;
         }
         for (;;) {
-            struct pollfd readiness {};
+            struct pollfd readiness{};
             readiness.fd = server.native_handle();
             readiness.events = POLLIN;
             const int poll_result = ::poll(&readiness, 1, 1000);
@@ -770,14 +776,14 @@ public:
         }
     }
 
-    bool serve_client(UnixStream& client, pid_t requester_pid) {
+    bool serve_client(UnixStream &client, pid_t requester_pid) {
         if (requester_pid <= 0) {
             errno = EINVAL;
             return false;
         }
         std::string request;
         for (;;) {
-            struct pollfd readiness {};
+            struct pollfd readiness{};
             readiness.fd = client.native_handle();
             readiness.events = POLLIN;
             const int poll_result = ::poll(&readiness, 1, 1000);
@@ -810,19 +816,19 @@ public:
         }
     }
 
-private:
-    Store& store_;
+  private:
+    Store &store_;
     std::string socket_path_;
 };
 
 // Init's in-process access point. Do not link this API into ordinary clients;
 // clients use the restricted line protocol over the Unix socket instead.
-inline Result setkey(const char* key, const char* value) {
+inline Result setkey(const char *key, const char *value) {
     Store init_view;
     return init_view.setkey(key, value);
 }
 
-inline void* init_service_thread(void*) {
+inline void *init_service_thread(void *) {
     Store init_view;
     Service service{init_view};
     (void)service.run();
@@ -837,14 +843,16 @@ inline bool run_init_service() {
         errno = result;
         return false;
     }
-    result = ::pthread_attr_setdetachstate(&attributes, PTHREAD_CREATE_DETACHED);
+    result =
+        ::pthread_attr_setdetachstate(&attributes, PTHREAD_CREATE_DETACHED);
     if (result != 0) {
         (void)::pthread_attr_destroy(&attributes);
         errno = result;
         return false;
     }
     pthread_t thread;
-    result = ::pthread_create(&thread, &attributes, &init_service_thread, nullptr);
+    result =
+        ::pthread_create(&thread, &attributes, &init_service_thread, nullptr);
     (void)::pthread_attr_destroy(&attributes);
     if (result != 0) {
         errno = result;

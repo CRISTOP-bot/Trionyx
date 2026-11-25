@@ -1,3 +1,8 @@
+// SPDX-License-Identifier: GPL-2.0-only
+// file by: 'femboy'
+// archivo hecho por: 'femboy'
+
+
 #include <types.h>
 
 #include <cstdlib>

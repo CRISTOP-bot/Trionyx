@@ -1,3 +1,9 @@
+// SPDX-License-Identifier: GPL-2.0-only
+// File by: 'femboy'
+// Archivo hecho por: 'femboy'
+
+#include <sys/types.h>
+
 #include "trionyx/sysdata.hpp"
 
 #include <cerrno>
@@ -9,9 +15,13 @@
 #include <thread>
 #include <vector>
 
-#define CHECK(expression) do { if (!(expression)) std::abort(); } while (false)
+#define CHECK(expression)                                                      \
+    do {                                                                       \
+        if (!(expression))                                                     \
+            std::abort();                                                      \
+    } while (false)
 
-static std::string read_file(const std::string& path) {
+static std::string read_file(const std::string &path) {
     std::ifstream input(path, std::ios::binary);
     return std::string(std::istreambuf_iterator<char>(input),
                        std::istreambuf_iterator<char>());
@@ -47,19 +57,16 @@ static void test_global_store_and_registry_projection() {
           trionyx::sysdata::Result::permission_denied);
     CHECK(trionyx::sysdata::setkey(store, "ro.product", "trionyx") ==
           trionyx::sysdata::Result::ok);
-    CHECK(store.setkey("init.ready", "yes") ==
-          trionyx::sysdata::Result::ok);
+    CHECK(store.setkey("init.ready", "yes") == trionyx::sysdata::Result::ok);
 
-    CHECK(store.set(200, "app.empty", "") ==
-          trionyx::sysdata::Result::invalid);
+    CHECK(store.set(200, "app.empty", "") == trionyx::sysdata::Result::invalid);
     CHECK(store.set(200, "app.nul", std::string_view("a\0b", 3)) ==
           trionyx::sysdata::Result::invalid);
     CHECK(store.set(200, "app.line", "a\nb") ==
           trionyx::sysdata::Result::invalid);
     CHECK(store.set(200, "../escape", "x") ==
           trionyx::sysdata::Result::invalid);
-    CHECK(store.set(200, ".leading", "x") ==
-          trionyx::sysdata::Result::invalid);
+    CHECK(store.set(200, ".leading", "x") == trionyx::sysdata::Result::invalid);
     CHECK(store.set(200, "trailing.", "x") ==
           trionyx::sysdata::Result::invalid);
     CHECK(store.set(200, "white space", "x") ==
@@ -90,8 +97,9 @@ static void test_init_views_use_two_global_stores() {
     trionyx::sysdata::detail::ProcessIdentity identity;
     CHECK(trionyx::sysdata::detail::process_identity(current_pid, identity));
     CHECK(::pthread_mutex_lock(&trionyx::sysdata::private_store_mutex) == 0);
-    trionyx::sysdata::private_store.push_back(
-        {current_pid, private_key, "private-shared", identity.start_time_ticks});
+    trionyx::sysdata::private_store.push_back({current_pid, private_key,
+                                               "private-shared",
+                                               identity.start_time_ticks});
     CHECK(::pthread_mutex_unlock(&trionyx::sysdata::private_store_mutex) == 0);
 
     const auto normal = first_view.normal_snapshot();
@@ -118,7 +126,8 @@ static void test_init_views_use_two_global_stores() {
 static void test_projection_failure_does_not_reject_property_update() {
     char directory[] = "/tmp/trionyx-registry-XXXXXX";
     CHECK(::mkdtemp(directory) != nullptr);
-    const std::string blocked_path = std::string(directory) + "/not-a-directory";
+    const std::string blocked_path =
+        std::string(directory) + "/not-a-directory";
     {
         std::ofstream blocker(blocked_path);
         CHECK(blocker.good());
@@ -130,14 +139,12 @@ static void test_projection_failure_does_not_reject_property_update() {
           trionyx::sysdata::Result::ok);
 
     std::string value;
-    CHECK(store.get("service.state", value) ==
-          trionyx::sysdata::Result::ok);
+    CHECK(store.get("service.state", value) == trionyx::sysdata::Result::ok);
     CHECK(value == "ready");
 
     CHECK(store.set(200, "service.state", "updated") ==
           trionyx::sysdata::Result::ok);
-    CHECK(store.get("service.state", value) ==
-          trionyx::sysdata::Result::ok);
+    CHECK(store.get("service.state", value) == trionyx::sysdata::Result::ok);
     CHECK(value == "updated");
     CHECK(store.normal_snapshot().size() == 1);
 
@@ -168,7 +175,7 @@ static void test_init_can_access_all_private_keys() {
           trionyx::sysdata::Result::ok);
     const auto entries = store.private_snapshot();
     bool found_init_entry = false;
-    for (const auto& entry : entries) {
+    for (const auto &entry : entries) {
         if (entry.key == "owned.by.init") {
             found_init_entry = true;
             CHECK(entry.pid == init_pid);
@@ -190,8 +197,10 @@ static void test_concurrent_store_access() {
     for (int thread_index = 0; thread_index < thread_count; ++thread_index) {
         workers.emplace_back([&, thread_index]() {
             const std::string key = "thread." + std::to_string(thread_index);
-            const std::string private_key = "private." + std::to_string(thread_index);
-            for (int write_index = 0; write_index < writes_per_thread; ++write_index) {
+            const std::string private_key =
+                "private." + std::to_string(thread_index);
+            for (int write_index = 0; write_index < writes_per_thread;
+                 ++write_index) {
                 const std::string value = std::to_string(write_index + 1);
                 CHECK(store.set(::getpid(), key, value) ==
                       trionyx::sysdata::Result::ok);
@@ -200,7 +209,7 @@ static void test_concurrent_store_access() {
             }
         });
     }
-    for (std::thread& worker : workers) {
+    for (std::thread &worker : workers) {
         worker.join();
     }
 
@@ -210,7 +219,8 @@ static void test_concurrent_store_access() {
     CHECK(private_values.size() == thread_count);
     for (int thread_index = 0; thread_index < thread_count; ++thread_index) {
         const std::string key = "thread." + std::to_string(thread_index);
-        const std::string private_key = "private." + std::to_string(thread_index);
+        const std::string private_key =
+            "private." + std::to_string(thread_index);
         std::string value;
         CHECK(store.get(key, value) == trionyx::sysdata::Result::ok);
         CHECK(value == std::to_string(writes_per_thread));
@@ -220,7 +230,8 @@ static void test_concurrent_store_access() {
     }
     for (int thread_index = 0; thread_index < thread_count; ++thread_index) {
         CHECK(::unlink((std::string(directory) + "/thread/" +
-                        std::to_string(thread_index)).c_str()) == 0);
+                        std::to_string(thread_index))
+                           .c_str()) == 0);
     }
     CHECK(::rmdir((std::string(directory) + "/thread").c_str()) == 0);
     CHECK(::rmdir(directory) == 0);
@@ -285,13 +296,14 @@ static void test_process_scoped_values() {
 
     CHECK(store.set(child, "persistent.value", "survives-exit") ==
           trionyx::sysdata::Result::ok);
-    CHECK(store.get("persistent.value", value) ==
-          trionyx::sysdata::Result::ok);
+    CHECK(store.get("persistent.value", value) == trionyx::sysdata::Result::ok);
     CHECK(value == "survives-exit");
     CHECK(store.getp(owner, "persistent.value", value) ==
           trionyx::sysdata::Result::not_found);
-    CHECK(store.normal_snapshot().size() == 1); // Normal SET survives process exit.
-    CHECK(::unlink((std::string(directory) + "/persistent/value").c_str()) == 0);
+    CHECK(store.normal_snapshot().size() ==
+          1); // Normal SET survives process exit.
+    CHECK(::unlink((std::string(directory) + "/persistent/value").c_str()) ==
+          0);
     CHECK(::rmdir((std::string(directory) + "/persistent").c_str()) == 0);
     CHECK(::rmdir(directory) == 0);
 }
@@ -315,8 +327,7 @@ static void test_protocol_and_authenticated_peer_pid() {
           "ERR INVALID\n");
     CHECK(store.process_request("SET trailing. value", requester) ==
           "ERR INVALID\n");
-    CHECK(store.process_request("GET has space", requester) ==
-          "ERR INVALID\n");
+    CHECK(store.process_request("GET has space", requester) == "ERR INVALID\n");
 
     int descriptors[2] = {-1, -1};
     CHECK(::socketpair(AF_UNIX, SOCK_STREAM, 0, descriptors) == 0);
@@ -325,14 +336,13 @@ static void test_protocol_and_authenticated_peer_pid() {
     bool service_ok = false;
     std::thread worker([&]() {
         pid_t actual_peer = -1;
-        CHECK(trionyx::sysdata::detail::peer_pid(
-            service_side.native_handle(), actual_peer));
+        CHECK(trionyx::sysdata::detail::peer_pid(service_side.native_handle(),
+                                                 actual_peer));
         CHECK(actual_peer == ::getpid());
         service_ok = service.serve_client(service_side, actual_peer);
     });
 
-    const char requests[] =
-        "SETP task.status running\nGETP task.status\n";
+    const char requests[] = "SETP task.status running\nGETP task.status\n";
     CHECK(client_side.send_all(requests, sizeof(requests) - 1));
     char response[128] = {};
     CHECK(client_side.receive_exact(response, 3));
