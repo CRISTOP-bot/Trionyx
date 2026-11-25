@@ -44,3 +44,14 @@ jobs:
 
       - name: Run stdr::out tests
         run: /tmp/trionyx-types-out-test
+
+      - name: Compile sysdata tests
+        env:
+          CXX: ${{ matrix.compiler }}
+        run: |
+          "$CXX" -std=c++23 -Wall -Wextra -Werror -pedantic -pthread \
+            -Iinclude tests/sysdata_test.cpp \
+            -o /tmp/trionyx-sysdata-test
+
+      - name: Run sysdata tests
+        run: /tmp/trionyx-sysdata-test

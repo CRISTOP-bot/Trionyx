@@ -292,6 +292,7 @@ public:
     }
 
     bool valid() const noexcept { return fd_ >= 0; }
+    int native_handle() const noexcept { return fd_; }
 
     int release() noexcept {
         const int fd = fd_;
