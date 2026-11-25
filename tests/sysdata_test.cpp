@@ -76,6 +76,34 @@ static void test_global_store_and_registry_projection() {
     CHECK(::rmdir(registry.c_str()) == 0);
 }
 
+static void test_init_views_use_two_global_stores() {
+    const std::string normal_key = "test.global.normal";
+    const std::string private_key = "test.global.private";
+    trionyx::sysdata::Store first_view;
+    trionyx::sysdata::Store second_view;
+
+    trionyx::sysdata::normal_store.push_back({normal_key, "shared"});
+    CHECK(first_view.values().back().key == normal_key);
+
+    const pid_t current_pid = ::getpid();
+    trionyx::sysdata::detail::ProcessIdentity identity;
+    CHECK(trionyx::sysdata::detail::process_identity(current_pid, identity));
+    trionyx::sysdata::private_store.push_back(
+        {current_pid, private_key, "private-shared", identity.start_time_ticks});
+    CHECK(first_view.process_values().back().key == private_key);
+    CHECK(first_view.process_values().back().pid == current_pid);
+
+    std::string value;
+    CHECK(second_view.get(normal_key, value) == trionyx::sysdata::Result::ok);
+    CHECK(value == "shared");
+    CHECK(second_view.getp(current_pid, private_key, value) ==
+          trionyx::sysdata::Result::ok);
+    CHECK(value == "private-shared");
+
+    trionyx::sysdata::normal_store.pop_back();
+    trionyx::sysdata::private_store.pop_back();
+}
+
 static void test_projection_failure_does_not_reject_property_update() {
     char directory[] = "/tmp/trionyx-registry-XXXXXX";
     CHECK(::mkdtemp(directory) != nullptr);
@@ -235,6 +263,7 @@ static void test_protocol_and_authenticated_peer_pid() {
 
 int main() {
     test_global_store_and_registry_projection();
+    test_init_views_use_two_global_stores();
     test_projection_failure_does_not_reject_property_update();
     test_process_scoped_values();
     test_protocol_and_authenticated_peer_pid();

@@ -1,6 +1,6 @@
 # Servicio sysdata de Trionyx
 
-`include/trionyx/sysdata.hpp` implementa el servicio de propiedades del proceso init. El estado autoritativo vive en dos `std::vector` dentro de `trionyx::sysdata::Store`; los clientes solo hablan con init por el socket local.
+`include/trionyx/sysdata.hpp` implementa el servicio de propiedades del proceso init. Hay exactamente dos objetos globales de almacenamiento: `normal_store` (clave/valor) y `private_store` (PID, clave y valor, más metadato de tiempo de inicio para evitar reutilización de PID). Los objetos `Store` locales son vistas de init o backends aislados de pruebas; no crean otro estado global. Los clientes solo hablan con init por el socket local.
 
 > La rama actual no tiene un punto de entrada activo de init donde conectar automáticamente este servicio. El entrypoint de init debe invocar `trionyx::sysdata::run_init_service()` después de preparar `/dev`. El montaje de `/dev/reg` es best-effort y no bloquea el servicio de socket ni las operaciones de propiedades.
 
@@ -42,7 +42,7 @@ trionyx::sysdata::setkey("init.ready", "yes");
 
 ## `GETP` y `SETP`
 
-El vector de proceso almacena `key`, `value`, `pid` y el tiempo de inicio del proceso leído de `/proc/<pid>/stat`. El PID se obtiene del kernel usando las credenciales del socket UNIX (`SO_PEERCRED` en Linux); nunca se acepta un PID del texto enviado por el cliente. La identidad se compara por PID y tiempo de inicio, así que un proceso nuevo que reutilice el mismo número de PID no hereda las propiedades del anterior.
+El registro privado conserva los campos `(pid_t, key, value)` y el tiempo de inicio del proceso leído de `/proc/<pid>/stat` como metadato de identidad. El PID se obtiene del kernel usando las credenciales del socket UNIX (`SO_PEERCRED` en Linux); nunca se acepta un PID del texto enviado por el cliente. La identidad se compara por PID y tiempo de inicio, así que un proceso nuevo que reutilice el mismo número de PID no hereda las propiedades del anterior.
 
 - El primer `SETP` de una clave la asocia al PID solicitante.
 - Solo ese PID puede volver a escribirla o leerla. Otro PID recibe `ERR PERMISSION_DENIED`.

@@ -48,11 +48,16 @@ struct KeyValue {
 };
 
 struct ProcessKeyValue {
+    pid_t pid;
     std::string key;
     std::string value;
-    pid_t pid;
     std::uint64_t start_time_ticks;
 };
+
+// The only process-lifetime store objects. The PID-scoped records carry the
+// requested (pid, key, value) tuple plus start-time metadata to prevent PID reuse.
+inline std::vector<KeyValue> normal_store;
+inline std::vector<ProcessKeyValue> private_store;
 
 namespace detail {
 
@@ -358,9 +363,15 @@ inline bool peer_pid(int fd, pid_t& pid) noexcept {
 // process table is bound to PID plus /proc starttime to survive PID reuse.
 class Store {
 public:
-    explicit Store(pid_t init_pid = 1,
-                   std::string registry_path = default_registry_path)
-        : init_pid_(init_pid), registry_path_(std::move(registry_path)) {}
+    // The init-facing view points at the two global stores. It owns no store.
+    Store()
+        : init_pid_(1), registry_path_(default_registry_path),
+          values_(normal_store), process_values_(private_store) {}
+
+    // Isolated backing stores are reserved for unit tests and embedding.
+    Store(pid_t init_pid, std::string registry_path)
+        : init_pid_(init_pid), registry_path_(std::move(registry_path)),
+          values_(local_values_), process_values_(local_process_values_) {}
 
     Result get(std::string_view key, std::string& value) const {
         if (!detail::valid_key(key)) {
@@ -448,9 +459,9 @@ public:
                 return Result::ok;
             }
         }
-        process_values_.push_back(ProcessKeyValue{std::string(key),
+        process_values_.push_back(ProcessKeyValue{requester_pid,
+                                                  std::string(key),
                                                   std::string(value),
-                                                  requester_pid,
                                                   requester_identity.start_time_ticks});
         return Result::ok;
     }
@@ -576,10 +587,12 @@ private:
         return Result::ok;
     }
 
+    std::vector<KeyValue> local_values_;
+    std::vector<ProcessKeyValue> local_process_values_;
     pid_t init_pid_;
     std::string registry_path_;
-    std::vector<KeyValue> values_;
-    std::vector<ProcessKeyValue> process_values_;
+    std::vector<KeyValue>& values_;
+    std::vector<ProcessKeyValue>& process_values_;
 };
 
 inline Result setkey(Store& store, const char* key, const char* value) {
@@ -730,17 +743,14 @@ private:
 
 // Init's in-process access point. Do not link this API into ordinary clients;
 // clients use the restricted line protocol over the Unix socket instead.
-inline Store& init_store() {
-    static Store store{1, default_registry_path};
-    return store;
-}
-
 inline Result setkey(const char* key, const char* value) {
-    return init_store().setkey(key, value);
+    Store init_view;
+    return init_view.setkey(key, value);
 }
 
 inline bool run_init_service() {
-    Service service{init_store()};
+    Store init_view;
+    Service service{init_view};
     return service.run();
 }
 
