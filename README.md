@@ -2,6 +2,8 @@
 
 Trionyx es una distribución GNU/Linux x86_64 en desarrollo. Este repositorio también contiene componentes de sistema y utilidades de bajo nivel en C/C++.
 
+Tambien, se caracteriza el `system-init`, sistema de inicializacion (init) propio de Trionyx, algunas de sus caracteristicas son:
+
 ## API sencilla de sockets UNIX
 
 La API header-only está en `include/trionyx/unix_socket.hpp`, dentro del espacio de nombres `trionyx::ipc`. Usa sockets locales POSIX `AF_UNIX` de tipo `SOCK_STREAM`, sin dependencias externas ni `std::array`.
