@@ -1,4 +1,0 @@
-service 
-null
- { /awk null  null oneshot
-}
