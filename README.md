@@ -40,6 +40,8 @@ int main() {
 
 El protocolo de trama tiene un tamaño de 32 bits en orden de red, seguido por los bytes del payload. La referencia completa está en [`Documentation/UNIX_SOCKETS_SPANISH.md`](Documentation/UNIX_SOCKETS_SPANISH.md).
 
+El helper de salida `stdr::out` de `include/types.h` también acepta rutas y contenido `std::string`; las rutas con NUL incrustado se rechazan con `EINVAL`.
+
 ### Compilar y ejecutar las pruebas
 
 En Linux con un compilador C++23 y pthreads:
@@ -50,7 +52,14 @@ c++ -std=c++23 -Wall -Wextra -Werror -pedantic -pthread \
 /tmp/trionyx-unix-socket-test
 ```
 
-Las pruebas cubren tramas binarias, NUL dentro de `std::string`, el límite de tamaño y una comunicación cliente-servidor.
+Las pruebas cubren tramas binarias, NUL dentro de `std::string`, el límite de tamaño, una comunicación cliente-servidor y la salida a archivo de `stdr::out` con una ruta `std::string`.
+
+```sh
+c++ -std=c++23 -Wall -Wextra -Werror -pedantic \
+  -Iinclude tests/types_out_test.cpp src/builtin.cpp \
+  -o /tmp/trionyx-types-out-test
+/tmp/trionyx-types-out-test
+```
 
 ### CI
 

@@ -33,3 +33,14 @@ jobs:
 
       - name: Run tests
         run: /tmp/trionyx-unix-socket-test
+
+      - name: Compile stdr::out tests
+        env:
+          CXX: ${{ matrix.compiler }}
+        run: |
+          "$CXX" -std=c++23 -Wall -Wextra -Werror -pedantic \
+            -Iinclude tests/types_out_test.cpp src/builtin.cpp \
+            -o /tmp/trionyx-types-out-test
+
+      - name: Run stdr::out tests
+        run: /tmp/trionyx-types-out-test
