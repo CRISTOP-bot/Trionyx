@@ -12,6 +12,7 @@
 #include <fcntl.h>
 #include <limits>
 #include <poll.h>
+#include <pthread.h>
 #include <string>
 #include <string_view>
 #include <sys/mount.h>
@@ -58,8 +59,32 @@ struct ProcessKeyValue {
 // requested (pid, key, value) tuple plus start-time metadata to prevent PID reuse.
 inline std::vector<KeyValue> normal_store;
 inline std::vector<ProcessKeyValue> private_store;
+inline pthread_mutex_t normal_store_mutex = PTHREAD_MUTEX_INITIALIZER;
+inline pthread_mutex_t private_store_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 namespace detail {
+
+class MutexGuard {
+public:
+    explicit MutexGuard(pthread_mutex_t& mutex) noexcept
+        : mutex_(&mutex), error_(::pthread_mutex_lock(mutex_)), locked_(error_ == 0) {}
+
+    ~MutexGuard() {
+        if (locked_) {
+            (void)::pthread_mutex_unlock(mutex_);
+        }
+    }
+
+    MutexGuard(const MutexGuard&) = delete;
+    MutexGuard& operator=(const MutexGuard&) = delete;
+
+    bool locked() const noexcept { return locked_; }
+
+private:
+    pthread_mutex_t* mutex_;
+    int error_;
+    bool locked_;
+};
 
 inline bool valid_key(std::string_view key) noexcept {
     if (key.empty() || key.size() > max_key_size || key.front() == '.' ||
@@ -366,16 +391,27 @@ public:
     // The init-facing view points at the two global stores. It owns no store.
     Store()
         : init_pid_(1), registry_path_(default_registry_path),
-          values_(normal_store), process_values_(private_store) {}
+          values_(normal_store), process_values_(private_store),
+          normal_mutex_(&normal_store_mutex),
+          private_mutex_(&private_store_mutex) {}
 
-    // Isolated backing stores are reserved for unit tests and embedding.
+    // Isolated backing stores and mutexes are reserved for tests/embedding.
     Store(pid_t init_pid, std::string registry_path)
         : init_pid_(init_pid), registry_path_(std::move(registry_path)),
-          values_(local_values_), process_values_(local_process_values_) {}
+          values_(local_values_), process_values_(local_process_values_),
+          normal_mutex_(&local_normal_mutex_),
+          private_mutex_(&local_private_mutex_) {}
+
+    Store(const Store&) = delete;
+    Store& operator=(const Store&) = delete;
 
     Result get(std::string_view key, std::string& value) const {
         if (!detail::valid_key(key)) {
             return Result::invalid;
+        }
+        detail::MutexGuard lock(*normal_mutex_);
+        if (!lock.locked()) {
+            return Result::io_error;
         }
         for (const KeyValue& entry : values_) {
             if (entry.key == key) {
@@ -421,12 +457,17 @@ public:
             requester_identity.state == 'Z' || requester_identity.state == 'X') {
             return Result::permission_denied;
         }
-        prune_dead_processes();
+        detail::MutexGuard lock(*private_mutex_);
+        if (!lock.locked()) {
+            return Result::io_error;
+        }
+        prune_dead_processes_locked();
         for (const ProcessKeyValue& entry : process_values_) {
             if (entry.key == key) {
-                if (!detail::same_process(entry.pid, entry.start_time_ticks,
-                                          requester_identity.pid,
-                                          requester_identity.start_time_ticks)) {
+                const bool owns_entry = detail::same_process(
+                    entry.pid, entry.start_time_ticks, requester_identity.pid,
+                    requester_identity.start_time_ticks);
+                if (!owns_entry && requester_pid != init_pid_) {
                     return Result::permission_denied;
                 }
                 value = entry.value;
@@ -447,12 +488,17 @@ public:
             requester_identity.state == 'Z' || requester_identity.state == 'X') {
             return Result::permission_denied;
         }
-        prune_dead_processes();
+        detail::MutexGuard lock(*private_mutex_);
+        if (!lock.locked()) {
+            return Result::io_error;
+        }
+        prune_dead_processes_locked();
         for (ProcessKeyValue& entry : process_values_) {
             if (entry.key == key) {
-                if (!detail::same_process(entry.pid, entry.start_time_ticks,
-                                          requester_identity.pid,
-                                          requester_identity.start_time_ticks)) {
+                const bool owns_entry = detail::same_process(
+                    entry.pid, entry.start_time_ticks, requester_identity.pid,
+                    requester_identity.start_time_ticks);
+                if (!owns_entry && requester_pid != init_pid_) {
                     return Result::permission_denied;
                 }
                 entry.value.assign(value);
@@ -467,22 +513,9 @@ public:
     }
 
     void prune_dead_processes() {
-        std::size_t index = 0;
-        while (index < process_values_.size()) {
-            const ProcessKeyValue& entry = process_values_[index];
-            detail::ProcessIdentity current;
-            const bool identity_read = detail::process_identity(entry.pid, current);
-            const bool definitely_gone = !identity_read && errno == ENOENT;
-            const bool stale_or_exited = identity_read &&
-                (current.state == 'Z' || current.state == 'X' ||
-                 !detail::same_process(entry.pid, entry.start_time_ticks,
-                                       current.pid, current.start_time_ticks));
-            if (definitely_gone || stale_or_exited) {
-                process_values_.erase(process_values_.begin() +
-                                      static_cast<std::ptrdiff_t>(index));
-            } else {
-                ++index;
-            }
+        detail::MutexGuard lock(*private_mutex_);
+        if (lock.locked()) {
+            prune_dead_processes_locked();
         }
     }
 
@@ -490,16 +523,31 @@ public:
         return detail::ensure_tmpfs(registry_path_);
     }
 
-    void refresh_registry_projection() const noexcept {
+    void refresh_registry_projection() const {
+        detail::MutexGuard lock(*normal_mutex_);
+        if (!lock.locked()) {
+            return;
+        }
         for (const KeyValue& entry : values_) {
             (void)detail::mirror_value(registry_path_, entry.key, entry.value);
         }
     }
 
-    // For init's own tests/diagnostics. These vectors are authoritative; files
-    // under /dev/reg are only a write-only projection and are never read back.
-    const std::vector<KeyValue>& values() const noexcept { return values_; }
-    const std::vector<ProcessKeyValue>& process_values() const noexcept {
+    // Snapshots keep callers from holding unprotected references while another
+    // thread mutates either global store.
+    std::vector<KeyValue> normal_snapshot() const {
+        detail::MutexGuard lock(*normal_mutex_);
+        if (!lock.locked()) {
+            return {};
+        }
+        return values_;
+    }
+
+    std::vector<ProcessKeyValue> private_snapshot() const {
+        detail::MutexGuard lock(*private_mutex_);
+        if (!lock.locked()) {
+            return {};
+        }
         return process_values_;
     }
 
@@ -565,13 +613,34 @@ public:
     }
 
 private:
+    void prune_dead_processes_locked() {
+        std::size_t index = 0;
+        while (index < process_values_.size()) {
+            const ProcessKeyValue& entry = process_values_[index];
+            detail::ProcessIdentity current;
+            const bool identity_read = detail::process_identity(entry.pid, current);
+            const bool definitely_gone = !identity_read && errno == ENOENT;
+            const bool stale_or_exited = identity_read &&
+                (current.state == 'Z' || current.state == 'X' ||
+                 !detail::same_process(entry.pid, entry.start_time_ticks,
+                                       current.pid, current.start_time_ticks));
+            if (definitely_gone || stale_or_exited) {
+                process_values_.erase(process_values_.begin() +
+                                      static_cast<std::ptrdiff_t>(index));
+            } else {
+                ++index;
+            }
+        }
+    }
+
     Result set_value(std::string_view key, std::string_view value) {
         if (!detail::valid_key(key) || !detail::valid_value(value)) {
             return Result::invalid;
         }
-        // The in-memory table is authoritative. /dev/reg is a best-effort
-        // read-only projection: its mount, permissions, or write failures must
-        // never reject or roll back a property update.
+        detail::MutexGuard lock(*normal_mutex_);
+        if (!lock.locked()) {
+            return Result::io_error;
+        }
         bool updated = false;
         for (KeyValue& entry : values_) {
             if (entry.key == key) {
@@ -583,16 +652,21 @@ private:
         if (!updated) {
             values_.push_back(KeyValue{std::string(key), std::string(value)});
         }
+        // Projection is serialized with commits but can never reject a SET.
         (void)detail::mirror_value(registry_path_, key, value);
         return Result::ok;
     }
 
     std::vector<KeyValue> local_values_;
     std::vector<ProcessKeyValue> local_process_values_;
+    pthread_mutex_t local_normal_mutex_ = PTHREAD_MUTEX_INITIALIZER;
+    pthread_mutex_t local_private_mutex_ = PTHREAD_MUTEX_INITIALIZER;
     pid_t init_pid_;
     std::string registry_path_;
     std::vector<KeyValue>& values_;
     std::vector<ProcessKeyValue>& process_values_;
+    pthread_mutex_t* normal_mutex_;
+    pthread_mutex_t* private_mutex_;
 };
 
 inline Result setkey(Store& store, const char* key, const char* value) {
@@ -748,10 +822,35 @@ inline Result setkey(const char* key, const char* value) {
     return init_view.setkey(key, value);
 }
 
-inline bool run_init_service() {
+inline void* init_service_thread(void*) {
     Store init_view;
     Service service{init_view};
-    return service.run();
+    (void)service.run();
+    return nullptr;
+}
+
+// Starts the socket service on its own detached pthread and returns to init.
+inline bool run_init_service() {
+    pthread_attr_t attributes;
+    int result = ::pthread_attr_init(&attributes);
+    if (result != 0) {
+        errno = result;
+        return false;
+    }
+    result = ::pthread_attr_setdetachstate(&attributes, PTHREAD_CREATE_DETACHED);
+    if (result != 0) {
+        (void)::pthread_attr_destroy(&attributes);
+        errno = result;
+        return false;
+    }
+    pthread_t thread;
+    result = ::pthread_create(&thread, &attributes, &init_service_thread, nullptr);
+    (void)::pthread_attr_destroy(&attributes);
+    if (result != 0) {
+        errno = result;
+        return false;
+    }
+    return true;
 }
 
 } // namespace trionyx::sysdata
