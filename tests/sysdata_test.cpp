@@ -124,7 +124,7 @@ static void test_process_scoped_values() {
 
     CHECK(store.set(child, "persistent.value", "survives-exit") ==
           trionyx::sysdata::Result::ok);
-    CHECK(store.get(child, "persistent.value", value) ==
+    CHECK(store.get("persistent.value", value) ==
           trionyx::sysdata::Result::ok);
     CHECK(value == "survives-exit");
     CHECK(store.getp(owner, "persistent.value", value) ==

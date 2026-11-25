@@ -23,6 +23,9 @@
 
 namespace trionyx::sysdata {
 
+using trionyx::ipc::UnixServer;
+using trionyx::ipc::UnixStream;
+
 inline constexpr const char* default_socket_path = "/dev/socket/sysdata";
 inline constexpr const char* default_registry_path = "/dev/reg";
 inline constexpr std::size_t max_key_size = 255;
