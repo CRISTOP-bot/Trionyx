@@ -6,7 +6,7 @@ Tambien, se caracteriza el `system-init`, sistema de inicializacion (init) propi
 
 ## API sencilla de sockets UNIX
 
-La API header-only está en `include/trionyx/unix_socket.hpp`, dentro del espacio de nombres `trionyx::ipc`. Usa sockets locales POSIX `AF_UNIX` de tipo `SOCK_STREAM`, sin dependencias externas ni `std::array`; ofrece `sockstream.hear(path)`, `read` y `write` y mantiene compatibles `UnixStream` y las funciones libres.
+La API header-only está en `include/trionyx/unix_socket.hpp`, dentro del espacio de nombres `trionyx::ipc`. Usa sockets locales POSIX `AF_UNIX` de tipo `SOCK_STREAM`, sin dependencias externas ni `std::array`; ofrece `sockstream.hear(path)`, `read` y `write` y mantiene compatibles `UnixStream` y las funciones libres. Los descriptores se crean con `SOCK_CLOEXEC` cuando está disponible.
 
 ### Uso rápido con `sockstream` y `std::string`
 

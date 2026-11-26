@@ -7,6 +7,7 @@
 #include <cerrno>
 #include <cstdint>
 #include <cstdlib>
+#include <fcntl.h>
 #include <cstring>
 #include <string>
 #include <thread>
@@ -23,6 +24,11 @@ using trionyx::ipc::send_frame;
 
 static_assert(std::is_same_v<trionyx::ipc::sockstream,
                               trionyx::ipc::UnixStream>);
+
+static bool has_close_on_exec(int fd) {
+    const int flags = ::fcntl(fd, F_GETFD);
+    return flags >= 0 && (flags & FD_CLOEXEC) != 0;
+}
 
 static void test_binary_frames() {
     int descriptors[2] = {-1, -1};
@@ -77,6 +83,7 @@ static void test_server_client_round_trip() {
 
     UnixServer server;
     CHECK(server.listen(socket_path));
+    CHECK(has_close_on_exec(server.native_handle()));
     bool server_ok = false;
 
     std::thread worker([&]() {
@@ -85,6 +92,7 @@ static void test_server_client_round_trip() {
         if (!peer.valid()) {
             return;
         }
+        CHECK(has_close_on_exec(peer.native_handle()));
 
         std::string request;
         if (!receive_frame(peer, request) || request != "ping") {
@@ -95,6 +103,7 @@ static void test_server_client_round_trip() {
 
     UnixStream client;
     CHECK(client.connect(socket_path));
+    CHECK(has_close_on_exec(client.native_handle()));
     CHECK(send_frame(client, std::string("ping")));
 
     std::string response;
@@ -116,6 +125,7 @@ static void test_compact_sockstream_api_with_std_string() {
 
     UnixServer server;
     CHECK(server.listen(std::string(path)));
+    CHECK(has_close_on_exec(server.native_handle()));
     bool server_ok = false;
     std::thread worker([&]() {
         int accept_error = 0;
@@ -123,6 +133,7 @@ static void test_compact_sockstream_api_with_std_string() {
         if (!peer.valid()) {
             return;
         }
+        CHECK(has_close_on_exec(peer.native_handle()));
         std::string request;
         if (!peer.read(request) || request != "ping") {
             return;
@@ -132,6 +143,7 @@ static void test_compact_sockstream_api_with_std_string() {
 
     trionyx::ipc::sockstream socket;
     CHECK(socket.hear(std::string(path)));
+    CHECK(has_close_on_exec(socket.native_handle()));
     CHECK(socket.write(std::string("ping")));
     std::string response;
     CHECK(socket.read(response));

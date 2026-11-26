@@ -63,7 +63,7 @@ int main() {
 
 ## Protocolo y límites
 
-Cada trama contiene un entero sin signo de 32 bits con el tamaño del payload, en orden de red (big-endian), seguido por el payload binario. Las operaciones manejan lecturas/escrituras parciales e interrupciones `EINTR`.
+Cada trama contiene un entero sin signo de 32 bits con el tamaño del payload, en orden de red (big-endian), seguido por el payload binario. Las operaciones manejan lecturas/escrituras parciales e interrupciones `EINTR`. Los descriptores creados para conectar/escuchar y los aceptados llevan `FD_CLOEXEC`: se usa `SOCK_CLOEXEC` de forma atómica cuando está disponible (`accept4` en Linux), con `fcntl` como fallback.
 
 Los métodos `sockstream::read` y la sobrecarga `receive_frame(stream, string)` limitan el payload a 16 MiB por defecto (`default_max_frame_size`). Se puede cambiar con `receive_frame(stream, string, max_size)`. Si se excede el límite, devuelve `false` y fija `errno` a `EMSGSIZE`; el cuerpo no se consume, así que descarta/cierra esa conexión. El buffer de string crece dinámicamente y una falla de asignación puede propagar una excepción estándar. La sobrecarga de buffer fijo no realiza esa asignación.
 

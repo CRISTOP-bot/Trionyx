@@ -10,6 +10,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <fcntl.h>
 #include <string>
 #include <string_view>
 #include <sys/socket.h>
@@ -41,6 +42,69 @@ inline bool make_address(const char *path, sockaddr_un &address,
     address_size =
         static_cast<socklen_t>(offsetof(sockaddr_un, sun_path) + path_size + 1);
     return true;
+}
+
+inline bool set_close_on_exec(int fd) noexcept {
+    int descriptor_flags;
+    do {
+        descriptor_flags = ::fcntl(fd, F_GETFD);
+    } while (descriptor_flags < 0 && errno == EINTR);
+    if (descriptor_flags < 0) {
+        return false;
+    }
+
+    int result;
+    do {
+        result = ::fcntl(fd, F_SETFD, descriptor_flags | FD_CLOEXEC);
+    } while (result < 0 && errno == EINTR);
+    return result == 0;
+}
+
+inline int create_stream_socket() noexcept {
+#if defined(SOCK_CLOEXEC)
+    const int cloexec_fd = ::socket(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0);
+    if (cloexec_fd >= 0 || (errno != EINVAL && errno != EPROTONOSUPPORT)) {
+        return cloexec_fd;
+    }
+#endif
+
+    const int fd = ::socket(AF_UNIX, SOCK_STREAM, 0);
+    if (fd < 0) {
+        return -1;
+    }
+    if (!set_close_on_exec(fd)) {
+        const int saved_errno = errno;
+        (void)::close(fd);
+        errno = saved_errno;
+        return -1;
+    }
+    return fd;
+}
+
+inline int accept_stream_socket(int listening_fd) noexcept {
+    int client_fd;
+#if defined(__linux__) && defined(SOCK_CLOEXEC)
+    do {
+        client_fd = ::accept4(listening_fd, nullptr, nullptr, SOCK_CLOEXEC);
+    } while (client_fd < 0 && errno == EINTR);
+    if (client_fd >= 0 || (errno != ENOSYS && errno != EINVAL)) {
+        return client_fd;
+    }
+#endif
+
+    do {
+        client_fd = ::accept(listening_fd, nullptr, nullptr);
+    } while (client_fd < 0 && errno == EINTR);
+    if (client_fd < 0) {
+        return -1;
+    }
+    if (!set_close_on_exec(client_fd)) {
+        const int saved_errno = errno;
+        (void)::close(client_fd);
+        errno = saved_errno;
+        return -1;
+    }
+    return client_fd;
 }
 
 inline bool configure_sigpipe(int fd) noexcept {
@@ -106,7 +170,7 @@ class UnixStream {
             return false;
         }
 
-        const int fd = ::socket(AF_UNIX, SOCK_STREAM, 0);
+        const int fd = detail::create_stream_socket();
         if (fd < 0) {
             return false;
         }
@@ -251,7 +315,7 @@ class UnixServer {
             return false;
         }
 
-        const int fd = ::socket(AF_UNIX, SOCK_STREAM, 0);
+        const int fd = detail::create_stream_socket();
         if (fd < 0) {
             return false;
         }
@@ -292,10 +356,7 @@ class UnixServer {
             return UnixStream{};
         }
 
-        int client_fd;
-        do {
-            client_fd = ::accept(fd_, nullptr, nullptr);
-        } while (client_fd < 0 && errno == EINTR);
+        const int client_fd = detail::accept_stream_socket(fd_);
 
         if (client_fd < 0) {
             if (error_code != nullptr) {
