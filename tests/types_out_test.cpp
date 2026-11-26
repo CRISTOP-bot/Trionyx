@@ -27,7 +27,7 @@ static void test_advanced_string_trim() {
     CHECK(all_trimmed.size() == 0);
     CHECK(all_trimmed.begin()[0] == '\0');
 
-    stdr::advanced_string empty;
+    stdr::advanced_string empty("");
     CHECK(empty.trim(' ') == 0);
     CHECK(empty.size() == 0);
 
