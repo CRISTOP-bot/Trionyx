@@ -4,39 +4,36 @@ Trionyx es una distribución GNU/Linux x86_64 en desarrollo. Este repositorio ta
 
 ## API sencilla de sockets UNIX
 
-La API header-only está en `include/trionyx/unix_socket.hpp`, dentro del espacio de nombres `trionyx::ipc`. Usa sockets locales POSIX `AF_UNIX` de tipo `SOCK_STREAM`, sin dependencias externas ni `std::array`.
+La API header-only está en `include/trionyx/unix_socket.hpp`, dentro del espacio de nombres `trionyx::ipc`. Usa sockets locales POSIX `AF_UNIX` de tipo `SOCK_STREAM`, sin dependencias externas ni `std::array`. Para el caso común ofrece `sockstream` con `hear`, `read` y `write`, manteniendo `UnixStream` y las funciones libres compatibles.
 
-### Uso rápido con `std::string`
+### Uso rápido con `sockstream` y `std::string`
 
 ```cpp
 #include "trionyx/unix_socket.hpp"
 #include <string>
 
 int main() {
-    trionyx::ipc::UnixStream socket;
-    if (!socket.connect(std::string("/run/trionyx/service.sock"))) {
+    trionyx::ipc::sockstream socket;
+    if (!socket.hear(std::string("/run/trionyx/service.sock"))) {
         return 1; // Revisar errno.
     }
 
     const std::string request = "hola";
-    if (!trionyx::ipc::send_frame(socket, request)) {
+    if (!socket.write(request)) {
         return 1;
     }
 
     std::string response;
-    if (!trionyx::ipc::receive_frame(socket, response)) {
+    if (!socket.read(response)) {
         return 1;
     }
-    // response contiene el payload y puede incluir bytes NUL.
-    return 0;
 }
 ```
 
-- `UnixStream::connect` y `UnixServer::listen` aceptan `const char*` o `std::string`.
-- `send_frame` acepta `std::string`, `std::string_view` y literales; conserva los bytes NUL de strings.
-- `receive_frame` puede escribir directo en un `std::string`; por defecto limita cada trama a 16 MiB. Pasa un límite explícito si necesitas otro tamaño.
-- La sobrecarga de buffer (`void*`, capacidad y tamaño recibido) sigue disponible para evitar asignaciones dinámicas.
-- `UnixStream` posee el descriptor y lo cierra automáticamente. Las funciones POSIX fallidas devuelven `false` y dejan el error en `errno`; el crecimiento del string recibido puede lanzar una excepción de asignación.
+`hear(path)` conecta como cliente al servidor. `read(string)` recibe una trama y `write(string)` envía una; ambas devuelven `bool` y reportan errores mediante `errno`. Aceptan `std::string` y conservan bytes NUL. Para buffer fijo puedes usar `read(buffer, capacity, received_size)`. Las APIs anteriores `UnixStream::connect`, `send_frame` y `receive_frame` siguen disponibles.
+
+- `sockstream` es un alias de `UnixStream`, dentro de `trionyx::ipc`; no crea una segunda implementación y no modifica el espacio de nombres `trionyx::sysdata`.
+- El resto de la referencia sobre `UnixServer`, protocolo y límites está en [`Documentation/UNIX_SOCKETS_SPANISH.md`](Documentation/UNIX_SOCKETS_SPANISH.md).
 
 El protocolo de trama tiene un tamaño de 32 bits en orden de red, seguido por los bytes del payload. La referencia completa está en [`Documentation/UNIX_SOCKETS_SPANISH.md`](Documentation/UNIX_SOCKETS_SPANISH.md).
 

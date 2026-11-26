@@ -2,40 +2,33 @@
 
 API header-only para sockets locales POSIX `AF_UNIX` de tipo `SOCK_STREAM`. No agrega dependencias externas y evita `std::array`. Está en `trionyx::ipc`.
 
-## Cliente con `std::string`
+## Cliente compacto con `sockstream`
 
 ```cpp
 #include "trionyx/unix_socket.hpp"
 #include <string>
 
 int main() {
-    trionyx::ipc::UnixStream socket;
-    if (!socket.connect(std::string("/run/trionyx/service.sock"))) {
+    trionyx::ipc::sockstream socket;
+    if (!socket.hear(std::string("/run/trionyx/service.sock"))) {
         return 1; // Revisar errno.
     }
 
     const std::string request = "hola";
-    if (!trionyx::ipc::send_frame(socket, request)) {
+    if (!socket.write(request)) {
         return 1;
     }
 
     std::string response;
-    if (!trionyx::ipc::receive_frame(socket, response)) {
+    if (!socket.read(response)) {
         return 1;
     }
-    // response.size() da el tamaño; puede contener NUL y no agrega terminador.
 }
 ```
 
-`send_frame` acepta `std::string`/`std::string_view` y conserva payloads binarios. También se puede recibir en un buffer fijo si se quiere evitar asignación dinámica:
+`hear(path)` conecta como cliente al socket del servidor. `write(string_view)` envía una trama binaria y `read(string, max_size)` recibe una con límite de 16 MiB por defecto. Aceptan rutas y payloads `std::string`; el contenido binario, incluido NUL, se conserva. Devuelven `false` al fallar y dejan el error en `errno`. Para un buffer fijo usa `read(buffer, capacity, received_size)`.
 
-```cpp
-char response[256];
-std::uint32_t size = 0;
-if (!trionyx::ipc::receive_frame(socket, response, sizeof(response), size)) {
-    // Revisar errno.
-}
-```
+`sockstream` es un alias de `UnixStream` en `trionyx::ipc`, no una implementación distinta. No agrega nombres al espacio `trionyx::sysdata`, así que el header de sysdata y sus consumidores de `UnixStream` permanecen compatibles. La API anterior (`connect`, `send_frame` y `receive_frame`) sigue disponible.
 
 ## Servidor
 
@@ -72,7 +65,7 @@ int main() {
 
 Cada trama contiene un entero sin signo de 32 bits con el tamaño del payload, en orden de red (big-endian), seguido por el payload binario. Las operaciones manejan lecturas/escrituras parciales e interrupciones `EINTR`.
 
-La sobrecarga `receive_frame(stream, string)` limita el payload a 16 MiB por defecto (`default_max_frame_size`). Se puede cambiar con `receive_frame(stream, string, max_size)`. Si se excede el límite, devuelve `false` y fija `errno` a `EMSGSIZE`; el cuerpo no se consume, así que descarta/cierra esa conexión. El buffer de string crece dinámicamente y una falla de asignación puede propagar una excepción estándar. La sobrecarga de buffer fijo no realiza esa asignación.
+Los métodos `sockstream::read` y la sobrecarga `receive_frame(stream, string)` limitan el payload a 16 MiB por defecto (`default_max_frame_size`). Se puede cambiar con `receive_frame(stream, string, max_size)`. Si se excede el límite, devuelve `false` y fija `errno` a `EMSGSIZE`; el cuerpo no se consume, así que descarta/cierra esa conexión. El buffer de string crece dinámicamente y una falla de asignación puede propagar una excepción estándar. La sobrecarga de buffer fijo no realiza esa asignación.
 
 Los errores de socket devuelven `false` y se consultan en `errno`; las operaciones de `UnixStream` y `UnixServer` no lanzan excepciones. `UnixStream` cierra su descriptor al destruirse. El servidor no desvincula automáticamente la ruta del socket.
 
