@@ -2,9 +2,11 @@
 
 Trionyx es una distribución GNU/Linux x86_64 en desarrollo. Este repositorio también contiene componentes de sistema y utilidades de bajo nivel en C/C++.
 
+Tambien, se caracteriza el `system-init`, sistema de inicializacion (init) propio de Trionyx, algunas de sus caracteristicas son:
+
 ## API sencilla de sockets UNIX
 
-La API header-only está en `include/trionyx/unix_socket.hpp`, dentro del espacio de nombres `trionyx::ipc`. Usa sockets locales POSIX `AF_UNIX` de tipo `SOCK_STREAM`, sin dependencias externas ni `std::array`. Para el caso común ofrece `sockstream` con `hear`, `read` y `write`, manteniendo `UnixStream` y las funciones libres compatibles.
+La API header-only está en `include/trionyx/unix_socket.hpp`, dentro del espacio de nombres `trionyx::ipc`. Usa sockets locales POSIX `AF_UNIX` de tipo `SOCK_STREAM`, sin dependencias externas ni `std::array`; ofrece `sockstream.hear(path)`, `read` y `write` y mantiene compatibles `UnixStream` y las funciones libres.
 
 ### Uso rápido con `sockstream` y `std::string`
 
@@ -14,26 +16,14 @@ La API header-only está en `include/trionyx/unix_socket.hpp`, dentro del espaci
 
 int main() {
     trionyx::ipc::sockstream socket;
-    if (!socket.hear(std::string("/run/trionyx/service.sock"))) {
-        return 1; // Revisar errno.
-    }
-
-    const std::string request = "hola";
-    if (!socket.write(request)) {
-        return 1;
-    }
-
+    if (!socket.hear(std::string("/run/trionyx/service.sock"))) return 1;
+    if (!socket.write(std::string("hola"))) return 1;
     std::string response;
-    if (!socket.read(response)) {
-        return 1;
-    }
+    if (!socket.read(response)) return 1;
 }
 ```
 
-`hear(path)` conecta como cliente al servidor. `read(string)` recibe una trama y `write(string)` envía una; ambas devuelven `bool` y reportan errores mediante `errno`. Aceptan `std::string` y conservan bytes NUL. Para buffer fijo puedes usar `read(buffer, capacity, received_size)`. Las APIs anteriores `UnixStream::connect`, `send_frame` y `receive_frame` siguen disponibles.
-
-- `sockstream` es un alias de `UnixStream`, dentro de `trionyx::ipc`; no crea una segunda implementación y no modifica el espacio de nombres `trionyx::sysdata`.
-- El resto de la referencia sobre `UnixServer`, protocolo y límites está en [`Documentation/UNIX_SOCKETS_SPANISH.md`](Documentation/UNIX_SOCKETS_SPANISH.md).
+`sockstream` es un alias de `UnixStream` en `trionyx::ipc`; no altera el espacio de nombres `trionyx::sysdata`. Referencia completa en [`Documentation/UNIX_SOCKETS_SPANISH.md`](Documentation/UNIX_SOCKETS_SPANISH.md).
 
 El protocolo de trama tiene un tamaño de 32 bits en orden de red, seguido por los bytes del payload. La referencia completa está en [`Documentation/UNIX_SOCKETS_SPANISH.md`](Documentation/UNIX_SOCKETS_SPANISH.md).
 
@@ -51,7 +41,7 @@ c++ -std=c++23 -Wall -Wextra -Werror -pedantic -pthread \
 /tmp/trionyx-unix-socket-test
 ```
 
-Las pruebas cubren tramas binarias, NUL dentro de `std::string`, el límite de tamaño, una comunicación cliente-servidor, la salida a archivo de `stdr::out` con una ruta `std::string` y el protocolo `sysdata` (permisos, claves y limpieza por PID).
+Las pruebas cubren `sockstream`, tramas binarias, NUL dentro de `std::string`, el límite de tamaño, una comunicación cliente-servidor, la salida a archivo de `stdr::out` con una ruta `std::string` y el protocolo `sysdata` (permisos, claves y limpieza por PID).
 
 ```sh
 c++ -std=c++23 -Wall -Wextra -Werror -pedantic -pthread \

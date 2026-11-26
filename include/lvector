@@ -1,3 +1,8 @@
+// SPDX-License-Identifier: GPL-2.0-only
+// file by: 'Tr1zz'
+// archivo hecho por: 'Tr1zz'
+
+
 #ifndef UTIL_INIT_H
 #define UTIL_INIT_H
 #include <cstdlib>

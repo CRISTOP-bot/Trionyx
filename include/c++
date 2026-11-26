@@ -1,0 +1,506 @@
+// SPDX-License-Identifier: GPL-2.0-only
+// file by: 'Tr1zz'
+// archivo hecho por: 'Tr1zz'
+
+#pragma once
+
+#ifndef EVERYTHING_HPP
+#define EVERYTHING_HPP
+
+#include <cassert>
+#include <cctype>
+#include <cerrno>
+#include <cfloat>
+#include <climits>
+#include <clocale>
+#include <cmath>
+#include <csetjmp>
+#include <csignal>
+#include <cstdarg>
+#include <cstddef>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
+#include <ctime>
+#include <cwchar>
+#include <cwctype>
+
+#include <assert.h>
+#include <ctype.h>
+#include <errno.h>
+#include <float.h>
+#include <limits.h>
+#include <locale.h>
+#include <math.h>
+#include <setjmp.h>
+#include <signal.h>
+#include <stdarg.h>
+#include <stddef.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <time.h>
+#include <wchar.h>
+#include <wctype.h>
+
+#include <exception>
+#include <limits>
+#include <new>
+#include <stdexcept>
+#include <typeinfo>
+
+#include <algorithm>
+#include <bitset>
+#include <complex>
+#include <deque>
+#include <functional>
+#include <iterator>
+#include <list>
+#include <map>
+#include <memory>
+#include <numeric>
+#include <queue>
+#include <set>
+#include <stack>
+#include <utility>
+#include <valarray>
+#include <vector>
+
+#include <string>
+
+#include <fstream>
+#include <iomanip>
+#include <ios>
+#include <iosfwd>
+#include <iostream>
+#include <istream>
+#include <locale>
+#include <ostream>
+#include <sstream>
+#include <streambuf>
+
+#if __cplusplus < 202002L && __has_include(<ciso646>)
+#include <ciso646>
+#endif
+
+#if __has_include(<iso646.h>)
+#include <iso646.h>
+#endif
+
+#if __cplusplus >= 201103L
+
+#if __has_include(<cfenv>)
+#include <cfenv>
+#endif
+#if __has_include(<cinttypes>)
+#include <cinttypes>
+#endif
+#if __has_include(<cstdint>)
+#include <cstdint>
+#endif
+#if __has_include(<cuchar>)
+#include <cuchar>
+#endif
+
+#if __has_include(<fenv.h>)
+#include <fenv.h>
+#endif
+#if __has_include(<inttypes.h>)
+#include <inttypes.h>
+#endif
+#if __has_include(<stdint.h>)
+#include <stdint.h>
+#endif
+#if __has_include(<uchar.h>)
+#include <uchar.h>
+#endif
+#if __has_include(<stdbool.h>)
+#include <stdbool.h>
+#endif
+#if __has_include(<stdalign.h>)
+#include <stdalign.h>
+#endif
+#if __has_include(<complex.h>)
+#include <complex.h>
+#endif
+#if __has_include(<tgmath.h>)
+#include <tgmath.h>
+#endif
+
+#if __cplusplus < 202002L
+#if __has_include(<ccomplex>)
+#include <ccomplex>
+#endif
+#if __has_include(<cstdalign>)
+#include <cstdalign>
+#endif
+#if __has_include(<cstdbool>)
+#include <cstdbool>
+#endif
+#if __has_include(<ctgmath>)
+#include <ctgmath>
+#endif
+#endif
+
+#if __has_include(<array>)
+#include <array>
+#endif
+#if __has_include(<forward_list>)
+#include <forward_list>
+#endif
+#if __has_include(<tuple>)
+#include <tuple>
+#endif
+#if __has_include(<unordered_map>)
+#include <unordered_map>
+#endif
+#if __has_include(<unordered_set>)
+#include <unordered_set>
+#endif
+#if __has_include(<initializer_list>)
+#include <initializer_list>
+#endif
+
+#if __has_include(<chrono>)
+#include <chrono>
+#endif
+#if __has_include(<ratio>)
+#include <ratio>
+#endif
+#if __has_include(<random>)
+#include <random>
+#endif
+#if __has_include(<regex>)
+#include <regex>
+#endif
+#if __has_include(<codecvt>)
+#include <codecvt>
+#endif
+
+#if __has_include(<type_traits>)
+#include <type_traits>
+#endif
+#if __has_include(<typeindex>)
+#include <typeindex>
+#endif
+#if __has_include(<system_error>)
+#include <system_error>
+#endif
+#if __has_include(<scoped_allocator>)
+#include <scoped_allocator>
+#endif
+
+#if __has_include(<atomic>)
+#include <atomic>
+#endif
+#if __has_include(<condition_variable>)
+#include <condition_variable>
+#endif
+#if __has_include(<future>)
+#include <future>
+#endif
+#if __has_include(<mutex>)
+#include <mutex>
+#endif
+#if __has_include(<thread>)
+#include <thread>
+#endif
+
+#endif
+
+#if __cplusplus >= 201402L
+
+#if __has_include(<shared_mutex>)
+#include <shared_mutex>
+#endif
+
+#endif
+
+#if __cplusplus >= 201703L
+
+#if __has_include(<any>)
+#include <any>
+#endif
+#if __has_include(<optional>)
+#include <optional>
+#endif
+#if __has_include(<variant>)
+#include <variant>
+#endif
+#if __has_include(<string_view>)
+#include <string_view>
+#endif
+#if __has_include(<memory_resource>)
+#include <memory_resource>
+#endif
+#if __has_include(<charconv>)
+#include <charconv>
+#endif
+#if __has_include(<filesystem>)
+#include <filesystem>
+#endif
+#if __has_include(<execution>)
+#include <execution>
+#endif
+
+#endif
+
+#if __cplusplus >= 202002L
+
+#if __has_include(<barrier>)
+#include <barrier>
+#endif
+#if __has_include(<bit>)
+#include <bit>
+#endif
+#if __has_include(<compare>)
+#include <compare>
+#endif
+#if __has_include(<concepts>)
+#include <concepts>
+#endif
+#if __has_include(<coroutine>)
+#include <coroutine>
+#endif
+#if __has_include(<format>)
+#include <format>
+#endif
+#if __has_include(<latch>)
+#include <latch>
+#endif
+#if __has_include(<numbers>)
+#include <numbers>
+#endif
+#if __has_include(<ranges>)
+#include <ranges>
+#endif
+#if __has_include(<semaphore>)
+#include <semaphore>
+#endif
+#if __has_include(<source_location>)
+#include <source_location>
+#endif
+#if __has_include(<span>)
+#include <span>
+#endif
+#if __has_include(<stop_token>)
+#include <stop_token>
+#endif
+#if __has_include(<syncstream>)
+#include <syncstream>
+#endif
+#if __has_include(<version>)
+#include <version>
+#endif
+
+#endif
+
+#if __cplusplus >= 202100L
+
+#if __has_include(<expected>)
+#include <expected>
+#endif
+#if __has_include(<flat_map>)
+#include <flat_map>
+#endif
+#if __has_include(<flat_set>)
+#include <flat_set>
+#endif
+#if __has_include(<generator>)
+#include <generator>
+#endif
+#if __has_include(<mdspan>)
+#include <mdspan>
+#endif
+#if __has_include(<print>)
+#include <print>
+#endif
+#if __has_include(<spanstream>)
+#include <spanstream>
+#endif
+#if __has_include(<stacktrace>)
+#include <stacktrace>
+#endif
+#if __has_include(<stdatomic.h>)
+#include <stdatomic.h>
+#endif
+#if __has_include(<stdfloat>)
+#include <stdfloat>
+#endif
+
+#endif
+
+#if __cplusplus >= 202400L
+
+#if __has_include(<contracts>)
+#include <contracts>
+#endif
+#if __has_include(<debugging>)
+#include <debugging>
+#endif
+#if __has_include(<hazard_pointer>)
+#include <hazard_pointer>
+#endif
+#if __has_include(<hive>)
+#include <hive>
+#endif
+#if __has_include(<inplace_vector>)
+#include <inplace_vector>
+#endif
+#if __has_include(<linalg>)
+#include <linalg>
+#endif
+#if __has_include(<meta>)
+#include <meta>
+#endif
+#if __has_include(<rcu>)
+#include <rcu>
+#endif
+#if __has_include(<simd>)
+#include <simd>
+#endif
+#if __has_include(<stdbit.h>)
+#include <stdbit.h>
+#endif
+#if __has_include(<stdckdint.h>)
+#include <stdckdint.h>
+#endif
+#if __has_include(<text_encoding>)
+#include <text_encoding>
+#endif
+
+#endif
+
+#if __cplusplus >= 201402L
+
+#if __has_include(<experimental/algorithm>)
+#include <experimental/algorithm>
+#endif
+#if __has_include(<experimental/any>)
+#include <experimental/any>
+#endif
+#if __has_include(<experimental/array>)
+#include <experimental/array>
+#endif
+#if __has_include(<experimental/chrono>)
+#include <experimental/chrono>
+#endif
+#if __has_include(<experimental/coroutine>)
+#include <experimental/coroutine>
+#endif
+#if __has_include(<experimental/deque>)
+#include <experimental/deque>
+#endif
+#if __has_include(<experimental/filesystem>)
+#include <experimental/filesystem>
+#endif
+#if __has_include(<experimental/forward_list>)
+#include <experimental/forward_list>
+#endif
+#if __has_include(<experimental/functional>)
+#include <experimental/functional>
+#endif
+#if __has_include(<experimental/future>)
+#include <experimental/future>
+#endif
+#if __has_include(<experimental/iterator>)
+#include <experimental/iterator>
+#endif
+#if __has_include(<experimental/list>)
+#include <experimental/list>
+#endif
+#if __has_include(<experimental/map>)
+#include <experimental/map>
+#endif
+#if __has_include(<experimental/memory>)
+#include <experimental/memory>
+#endif
+#if __has_include(<experimental/memory_resource>)
+#include <experimental/memory_resource>
+#endif
+#if __has_include(<experimental/numeric>)
+#include <experimental/numeric>
+#endif
+#if __has_include(<experimental/optional>)
+#include <experimental/optional>
+#endif
+#if __has_include(<experimental/propagate_const>)
+#include <experimental/propagate_const>
+#endif
+#if __has_include(<experimental/random>)
+#include <experimental/random>
+#endif
+#if __has_include(<experimental/ratio>)
+#include <experimental/ratio>
+#endif
+#if __has_include(<experimental/regex>)
+#include <experimental/regex>
+#endif
+#if __has_include(<experimental/scope>)
+#include <experimental/scope>
+#endif
+#if __has_include(<experimental/set>)
+#include <experimental/set>
+#endif
+#if __has_include(<experimental/simd>)
+#include <experimental/simd>
+#endif
+#if __has_include(<experimental/source_location>)
+#include <experimental/source_location>
+#endif
+#if __has_include(<experimental/string>)
+#include <experimental/string>
+#endif
+#if __has_include(<experimental/string_view>)
+#include <experimental/string_view>
+#endif
+#if __has_include(<experimental/system_error>)
+#include <experimental/system_error>
+#endif
+#if __has_include(<experimental/tuple>)
+#include <experimental/tuple>
+#endif
+#if __has_include(<experimental/type_traits>)
+#include <experimental/type_traits>
+#endif
+#if __has_include(<experimental/unordered_map>)
+#include <experimental/unordered_map>
+#endif
+#if __has_include(<experimental/unordered_set>)
+#include <experimental/unordered_set>
+#endif
+#if __has_include(<experimental/utility>)
+#include <experimental/utility>
+#endif
+#if __has_include(<experimental/vector>)
+#include <experimental/vector>
+#endif
+
+#if __has_include(<experimental/buffer>)
+#include <experimental/buffer>
+#endif
+#if __has_include(<experimental/executor>)
+#include <experimental/executor>
+#endif
+#if __has_include(<experimental/internet>)
+#include <experimental/internet>
+#endif
+#if __has_include(<experimental/io_context>)
+#include <experimental/io_context>
+#endif
+#if __has_include(<experimental/net>)
+#include <experimental/net>
+#endif
+#if __has_include(<experimental/netfwd>)
+#include <experimental/netfwd>
+#endif
+#if __has_include(<experimental/socket>)
+#include <experimental/socket>
+#endif
+#if __has_include(<experimental/timer>)
+#include <experimental/timer>
+#endif
+
+#endif
+
+#endif

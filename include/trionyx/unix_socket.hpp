@@ -1,3 +1,7 @@
+// SPDX-License-Identifier: GPL-2.0-only
+// File by: 'femboy'
+// Archivo hecho por: 'femboy'
+
 #ifndef TRIONYX_UNIX_SOCKET_HPP
 #define TRIONYX_UNIX_SOCKET_HPP
 
@@ -18,8 +22,8 @@ inline constexpr std::uint32_t default_max_frame_size = 16U * 1024U * 1024U;
 
 namespace detail {
 
-inline bool make_address(const char* path, sockaddr_un& address,
-                         socklen_t& address_size) noexcept {
+inline bool make_address(const char *path, sockaddr_un &address,
+                         socklen_t &address_size) noexcept {
     if (path == nullptr || path[0] == '\0') {
         errno = EINVAL;
         return false;
@@ -34,8 +38,8 @@ inline bool make_address(const char* path, sockaddr_un& address,
     std::memset(&address, 0, sizeof(address));
     address.sun_family = AF_UNIX;
     std::memcpy(address.sun_path, path, path_size + 1);
-    address_size = static_cast<socklen_t>(
-        offsetof(sockaddr_un, sun_path) + path_size + 1);
+    address_size =
+        static_cast<socklen_t>(offsetof(sockaddr_un, sun_path) + path_size + 1);
     return true;
 }
 
@@ -62,30 +66,30 @@ inline int send_flags() noexcept {
 
 class UnixStream;
 
-inline bool send_frame(UnixStream& stream, const void* payload,
+inline bool send_frame(UnixStream &stream, const void *payload,
                        std::uint32_t size) noexcept;
-inline bool send_frame(UnixStream& stream, std::string_view payload) noexcept;
-inline bool receive_frame(UnixStream& stream, void* buffer,
+inline bool send_frame(UnixStream &stream, std::string_view payload) noexcept;
+inline bool receive_frame(UnixStream &stream, void *buffer,
                           std::uint32_t capacity,
-                          std::uint32_t& received_size) noexcept;
-inline bool receive_frame(UnixStream& stream, std::string& payload,
+                          std::uint32_t &received_size) noexcept;
+inline bool receive_frame(UnixStream &stream, std::string &payload,
                           std::uint32_t max_size = default_max_frame_size);
 
 // Owns one connected AF_UNIX SOCK_STREAM descriptor. Errors are reported
 // through errno; methods do not throw exceptions.
 class UnixStream {
-public:
+  public:
     UnixStream() noexcept = default;
     explicit UnixStream(int fd) noexcept : fd_(fd) {}
 
     ~UnixStream() { close(); }
 
-    UnixStream(const UnixStream&) = delete;
-    UnixStream& operator=(const UnixStream&) = delete;
+    UnixStream(const UnixStream &) = delete;
+    UnixStream &operator=(const UnixStream &) = delete;
 
-    UnixStream(UnixStream&& other) noexcept : fd_(other.release()) {}
+    UnixStream(UnixStream &&other) noexcept : fd_(other.release()) {}
 
-    UnixStream& operator=(UnixStream&& other) noexcept {
+    UnixStream &operator=(UnixStream &&other) noexcept {
         if (this != &other) {
             close();
             fd_ = other.release();
@@ -93,7 +97,7 @@ public:
         return *this;
     }
 
-    bool connect(const char* path) noexcept {
+    bool connect(const char *path) noexcept {
         close();
 
         sockaddr_un address{};
@@ -112,7 +116,7 @@ public:
             errno = saved_errno;
             return false;
         }
-        if (::connect(fd, reinterpret_cast<const sockaddr*>(&address),
+        if (::connect(fd, reinterpret_cast<const sockaddr *>(&address),
                       address_size) < 0) {
             const int saved_errno = errno;
             ::close(fd);
@@ -124,7 +128,7 @@ public:
         return true;
     }
 
-    bool connect(const std::string& path) noexcept {
+    bool connect(const std::string &path) noexcept {
         if (path.find('\0') != std::string::npos) {
             close();
             errno = EINVAL;
@@ -133,17 +137,17 @@ public:
         return connect(path.c_str());
     }
 
-    // Short client-facing spelling: connect to the server at path.
-    bool hear(const char* path) noexcept { return connect(path); }
-    bool hear(const std::string& path) noexcept { return connect(path); }
+    // Compact client-facing spelling; it connects to a listening AF_UNIX path.
+    bool hear(const char *path) noexcept { return connect(path); }
+    bool hear(const std::string &path) noexcept { return connect(path); }
 
-    // Framed, binary-safe I/O. The legacy free functions remain supported.
-    bool read(std::string& payload,
+    // Framed, binary-safe member I/O. Existing free functions are unchanged.
+    bool read(std::string &payload,
               std::uint32_t max_size = default_max_frame_size);
-    bool read(void* buffer, std::uint32_t capacity,
-              std::uint32_t& received_size) noexcept;
+    bool read(void *buffer, std::uint32_t capacity,
+              std::uint32_t &received_size) noexcept;
     bool write(std::string_view payload) noexcept;
-    bool write(const void* payload, std::uint32_t size) noexcept;
+    bool write(const void *payload, std::uint32_t size) noexcept;
 
     bool valid() const noexcept { return fd_ >= 0; }
     int native_handle() const noexcept { return fd_; }
@@ -162,17 +166,17 @@ public:
         }
     }
 
-    bool send_all(const void* data, std::size_t size) noexcept {
+    bool send_all(const void *data, std::size_t size) noexcept {
         if (fd_ < 0 || (data == nullptr && size != 0)) {
             errno = (fd_ < 0) ? EBADF : EINVAL;
             return false;
         }
 
-        const auto* bytes = static_cast<const unsigned char*>(data);
+        const auto *bytes = static_cast<const unsigned char *>(data);
         std::size_t sent = 0;
         while (sent < size) {
-            const ssize_t result = ::send(fd_, bytes + sent, size - sent,
-                                          detail::send_flags());
+            const ssize_t result =
+                ::send(fd_, bytes + sent, size - sent, detail::send_flags());
             if (result > 0) {
                 sent += static_cast<std::size_t>(result);
                 continue;
@@ -188,17 +192,17 @@ public:
         return true;
     }
 
-    bool receive_exact(void* data, std::size_t size) noexcept {
+    bool receive_exact(void *data, std::size_t size) noexcept {
         if (fd_ < 0 || (data == nullptr && size != 0)) {
             errno = (fd_ < 0) ? EBADF : EINVAL;
             return false;
         }
 
-        auto* bytes = static_cast<unsigned char*>(data);
+        auto *bytes = static_cast<unsigned char *>(data);
         std::size_t received = 0;
         while (received < size) {
-            const ssize_t result = ::recv(fd_, bytes + received,
-                                          size - received, 0);
+            const ssize_t result =
+                ::recv(fd_, bytes + received, size - received, 0);
             if (result > 0) {
                 received += static_cast<std::size_t>(result);
                 continue;
@@ -214,23 +218,23 @@ public:
         return true;
     }
 
-private:
+  private:
     int fd_ = -1;
 };
 
 // A small AF_UNIX stream listener. It does not remove the filesystem socket
 // path on close; unlink the path explicitly after closing the server.
 class UnixServer {
-public:
+  public:
     UnixServer() noexcept = default;
     ~UnixServer() { close(); }
 
-    UnixServer(const UnixServer&) = delete;
-    UnixServer& operator=(const UnixServer&) = delete;
+    UnixServer(const UnixServer &) = delete;
+    UnixServer &operator=(const UnixServer &) = delete;
 
-    UnixServer(UnixServer&& other) noexcept : fd_(other.release()) {}
+    UnixServer(UnixServer &&other) noexcept : fd_(other.release()) {}
 
-    UnixServer& operator=(UnixServer&& other) noexcept {
+    UnixServer &operator=(UnixServer &&other) noexcept {
         if (this != &other) {
             close();
             fd_ = other.release();
@@ -238,7 +242,7 @@ public:
         return *this;
     }
 
-    bool listen(const char* path, int backlog = 16) noexcept {
+    bool listen(const char *path, int backlog = 16) noexcept {
         close();
 
         sockaddr_un address{};
@@ -257,8 +261,9 @@ public:
             errno = saved_errno;
             return false;
         }
-        if (::bind(fd, reinterpret_cast<const sockaddr*>(&address),
-                   address_size) < 0 || ::listen(fd, backlog) < 0) {
+        if (::bind(fd, reinterpret_cast<const sockaddr *>(&address),
+                   address_size) < 0 ||
+            ::listen(fd, backlog) < 0) {
             const int saved_errno = errno;
             ::close(fd);
             errno = saved_errno;
@@ -269,7 +274,7 @@ public:
         return true;
     }
 
-    bool listen(const std::string& path, int backlog = 16) noexcept {
+    bool listen(const std::string &path, int backlog = 16) noexcept {
         if (path.find('\0') != std::string::npos) {
             close();
             errno = EINVAL;
@@ -278,7 +283,7 @@ public:
         return listen(path.c_str(), backlog);
     }
 
-    UnixStream accept(int* error_code = nullptr) noexcept {
+    UnixStream accept(int *error_code = nullptr) noexcept {
         if (fd_ < 0) {
             if (error_code != nullptr) {
                 *error_code = EBADF;
@@ -331,7 +336,7 @@ public:
         }
     }
 
-private:
+  private:
     int fd_ = -1;
 };
 
@@ -339,7 +344,7 @@ private:
 // followed by exactly that many payload bytes. Payloads are binary-safe.
 // If receive_frame reports EMSGSIZE, close/discard the stream: the frame body
 // has not been consumed and the next read would otherwise be misaligned.
-inline bool send_frame(UnixStream& stream, const void* payload,
+inline bool send_frame(UnixStream &stream, const void *payload,
                        std::uint32_t size) noexcept {
     if (payload == nullptr && size != 0) {
         errno = EINVAL;
@@ -354,7 +359,7 @@ inline bool send_frame(UnixStream& stream, const void* payload,
 }
 
 // Convenient binary-safe overload for std::string and string literals.
-inline bool send_frame(UnixStream& stream, std::string_view payload) noexcept {
+inline bool send_frame(UnixStream &stream, std::string_view payload) noexcept {
     if (payload.size() > UINT32_MAX) {
         errno = EMSGSIZE;
         return false;
@@ -363,9 +368,9 @@ inline bool send_frame(UnixStream& stream, std::string_view payload) noexcept {
                       static_cast<std::uint32_t>(payload.size()));
 }
 
-inline bool receive_frame(UnixStream& stream, void* buffer,
+inline bool receive_frame(UnixStream &stream, void *buffer,
                           std::uint32_t capacity,
-                          std::uint32_t& received_size) noexcept {
+                          std::uint32_t &received_size) noexcept {
     received_size = 0;
     std::uint32_t network_size = 0;
     if (!stream.receive_exact(&network_size, sizeof(network_size))) {
@@ -388,7 +393,7 @@ inline bool receive_frame(UnixStream& stream, void* buffer,
 // Reads a frame directly into a std::string. The default cap avoids allocating
 // unbounded memory from an untrusted peer. On EMSGSIZE, the frame body remains
 // unread, so the caller should discard/close the stream.
-inline bool receive_frame(UnixStream& stream, std::string& payload,
+inline bool receive_frame(UnixStream &stream, std::string &payload,
                           std::uint32_t max_size) {
     payload.clear();
     std::uint32_t network_size = 0;
@@ -410,17 +415,16 @@ inline bool receive_frame(UnixStream& stream, std::string& payload,
     return true;
 }
 
-// Lowercase convenience name for the compact client API. It is an alias, not
-// a second socket implementation, so existing UnixStream/sysdata code shares
-// the same descriptor and behavior.
+// Convenience alias, not a second implementation: old UnixStream users and
+// sysdata keep the same class and descriptor semantics.
 using sockstream = UnixStream;
 
-inline bool UnixStream::read(std::string& payload, std::uint32_t max_size) {
+inline bool UnixStream::read(std::string &payload, std::uint32_t max_size) {
     return receive_frame(*this, payload, max_size);
 }
 
-inline bool UnixStream::read(void* buffer, std::uint32_t capacity,
-                             std::uint32_t& received_size) noexcept {
+inline bool UnixStream::read(void *buffer, std::uint32_t capacity,
+                             std::uint32_t &received_size) noexcept {
     return receive_frame(*this, buffer, capacity, received_size);
 }
 
@@ -428,7 +432,7 @@ inline bool UnixStream::write(std::string_view payload) noexcept {
     return send_frame(*this, payload);
 }
 
-inline bool UnixStream::write(const void* payload, std::uint32_t size) noexcept {
+inline bool UnixStream::write(const void *payload, std::uint32_t size) noexcept {
     return send_frame(*this, payload, size);
 }
 

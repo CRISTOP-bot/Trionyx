@@ -28,7 +28,7 @@ int main() {
 
 `hear(path)` conecta como cliente al socket del servidor. `write(string_view)` envía una trama binaria y `read(string, max_size)` recibe una con límite de 16 MiB por defecto. Aceptan rutas y payloads `std::string`; el contenido binario, incluido NUL, se conserva. Devuelven `false` al fallar y dejan el error en `errno`. Para un buffer fijo usa `read(buffer, capacity, received_size)`.
 
-`sockstream` es un alias de `UnixStream` en `trionyx::ipc`, no una implementación distinta. No agrega nombres al espacio `trionyx::sysdata`, así que el header de sysdata y sus consumidores de `UnixStream` permanecen compatibles. La API anterior (`connect`, `send_frame` y `receive_frame`) sigue disponible.
+`sockstream` es un alias de `UnixStream` en `trionyx::ipc`, no una implementación distinta. No agrega nombres al espacio `trionyx::sysdata`, así que sysdata y sus consumidores de `UnixStream` permanecen compatibles. La API anterior (`connect`, `send_frame` y `receive_frame`) sigue disponible.
 
 ## Servidor
 

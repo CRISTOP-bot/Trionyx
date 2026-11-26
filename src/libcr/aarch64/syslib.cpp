@@ -1,3 +1,8 @@
+// SPDX-License-Identifier: GPL-2.0-only
+// file by: 'Tr1zz'
+// archivo hecho por: 'Tr1zz'
+
+
 using syscall_t = long;
 
 extern "C" syscall_t rsyscall(syscall_t nr, syscall_t a0, syscall_t a1,

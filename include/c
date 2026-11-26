@@ -1,0 +1,137 @@
+// SPDX-License-Identifier: GPL-2.0-only
+// file by: 'Tr1zz'
+// archivo hecho por: 'Tr1zz'
+
+#pragma once
+
+#ifndef EVERYTHING_C_HPP
+#define EVERYTHING_C_HPP
+
+#include <cassert>
+#include <cctype>
+#include <cerrno>
+#include <cfloat>
+#include <climits>
+#include <clocale>
+#include <cmath>
+#include <csetjmp>
+#include <csignal>
+#include <cstdarg>
+#include <cstddef>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
+#include <ctime>
+#include <cwchar>
+#include <cwctype>
+
+#include <assert.h>
+#include <ctype.h>
+#include <errno.h>
+#include <float.h>
+#include <limits.h>
+#include <locale.h>
+#include <math.h>
+#include <setjmp.h>
+#include <signal.h>
+#include <stdarg.h>
+#include <stddef.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <time.h>
+#include <wchar.h>
+#include <wctype.h>
+
+#if __cplusplus >= 201103L
+
+#if __has_include(<cfenv>)
+#include <cfenv>
+#endif
+#if __has_include(<cinttypes>)
+#include <cinttypes>
+#endif
+#if __has_include(<cstdint>)
+#include <cstdint>
+#endif
+#if __has_include(<cuchar>)
+#include <cuchar>
+#endif
+
+#if __has_include(<fenv.h>)
+#include <fenv.h>
+#endif
+#if __has_include(<inttypes.h>)
+#include <inttypes.h>
+#endif
+#if __has_include(<stdint.h>)
+#include <stdint.h>
+#endif
+#if __has_include(<uchar.h>)
+#include <uchar.h>
+#endif
+
+#if __has_include(<stdbool.h>)
+#include <stdbool.h>
+#endif
+#if __has_include(<stdalign.h>)
+#include <stdalign.h>
+#endif
+#if __has_include(<complex.h>)
+#include <complex.h>
+#endif
+#if __has_include(<tgmath.h>)
+#include <tgmath.h>
+#endif
+
+#endif
+
+#if __cplusplus < 202002L
+
+#if __has_include(<ciso646>)
+#include <ciso646>
+#endif
+
+#endif
+
+#if __has_include(<iso646.h>)
+#include <iso646.h>
+#endif
+
+#if __cplusplus >= 201103L && __cplusplus < 202002L
+
+#if __has_include(<ccomplex>)
+#include <ccomplex>
+#endif
+#if __has_include(<cstdalign>)
+#include <cstdalign>
+#endif
+#if __has_include(<cstdbool>)
+#include <cstdbool>
+#endif
+#if __has_include(<ctgmath>)
+#include <ctgmath>
+#endif
+
+#endif
+
+#if __cplusplus >= 202100L
+
+#if __has_include(<stdatomic.h>)
+#include <stdatomic.h>
+#endif
+
+#endif
+
+#if __cplusplus >= 202400L
+
+#if __has_include(<stdbit.h>)
+#include <stdbit.h>
+#endif
+#if __has_include(<stdckdint.h>)
+#include <stdckdint.h>
+#endif
+
+#endif
+
+#endif
