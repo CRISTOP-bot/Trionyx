@@ -114,7 +114,32 @@ class advanced_string {
         return true;
     }
 
-    int trim(char c) { char *tmpob }
+    // Removes c only from the beginning and end; returns the number removed.
+    // The stored buffer stays NUL-terminated and no allocation is needed.
+    int trim(char c) {
+        if (data == nullptr || data_size == 0) {
+            return 0;
+        }
+
+        const size_t old_size = data_size - 1;
+        size_t first = 0;
+        while (first < old_size && data[first] == c) {
+            ++first;
+        }
+
+        size_t last = old_size;
+        while (last > first && data[last - 1] == c) {
+            --last;
+        }
+
+        const size_t new_size = last - first;
+        for (size_t index = 0; index < new_size; ++index) {
+            data[index] = data[first + index];
+        }
+        data[new_size] = '\0';
+        data_size = new_size + 1;
+        return static_cast<int>(old_size - new_size);
+    }
 };
 } // namespace stdr
 
