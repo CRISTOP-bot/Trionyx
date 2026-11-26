@@ -13,6 +13,7 @@
 #include <string>
 #include <sys/wait.h>
 #include <thread>
+#include <type_traits>
 #include <vector>
 
 #define CHECK(expression)                                                      \
@@ -20,6 +21,9 @@
         if (!(expression))                                                     \
             std::abort();                                                      \
     } while (false)
+
+static_assert(std::is_same_v<trionyx::ipc::sockstream,
+                              trionyx::ipc::UnixStream>);
 
 static std::string read_file(const std::string &path) {
     std::ifstream input(path, std::ios::binary);

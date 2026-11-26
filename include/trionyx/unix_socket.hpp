@@ -10,6 +10,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <fcntl.h>
 #include <string>
 #include <string_view>
 #include <sys/socket.h>
@@ -43,6 +44,69 @@ inline bool make_address(const char *path, sockaddr_un &address,
     return true;
 }
 
+inline bool set_close_on_exec(int fd) noexcept {
+    int descriptor_flags;
+    do {
+        descriptor_flags = ::fcntl(fd, F_GETFD);
+    } while (descriptor_flags < 0 && errno == EINTR);
+    if (descriptor_flags < 0) {
+        return false;
+    }
+
+    int result;
+    do {
+        result = ::fcntl(fd, F_SETFD, descriptor_flags | FD_CLOEXEC);
+    } while (result < 0 && errno == EINTR);
+    return result == 0;
+}
+
+inline int create_stream_socket() noexcept {
+#if defined(SOCK_CLOEXEC)
+    const int cloexec_fd = ::socket(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0);
+    if (cloexec_fd >= 0 || (errno != EINVAL && errno != EPROTONOSUPPORT)) {
+        return cloexec_fd;
+    }
+#endif
+
+    const int fd = ::socket(AF_UNIX, SOCK_STREAM, 0);
+    if (fd < 0) {
+        return -1;
+    }
+    if (!set_close_on_exec(fd)) {
+        const int saved_errno = errno;
+        (void)::close(fd);
+        errno = saved_errno;
+        return -1;
+    }
+    return fd;
+}
+
+inline int accept_stream_socket(int listening_fd) noexcept {
+    int client_fd;
+#if defined(__linux__) && defined(SOCK_CLOEXEC)
+    do {
+        client_fd = ::accept4(listening_fd, nullptr, nullptr, SOCK_CLOEXEC);
+    } while (client_fd < 0 && errno == EINTR);
+    if (client_fd >= 0 || (errno != ENOSYS && errno != EINVAL)) {
+        return client_fd;
+    }
+#endif
+
+    do {
+        client_fd = ::accept(listening_fd, nullptr, nullptr);
+    } while (client_fd < 0 && errno == EINTR);
+    if (client_fd < 0) {
+        return -1;
+    }
+    if (!set_close_on_exec(client_fd)) {
+        const int saved_errno = errno;
+        (void)::close(client_fd);
+        errno = saved_errno;
+        return -1;
+    }
+    return client_fd;
+}
+
 inline bool configure_sigpipe(int fd) noexcept {
 #if defined(SO_NOSIGPIPE)
     const int enabled = 1;
@@ -63,6 +127,17 @@ inline int send_flags() noexcept {
 }
 
 } // namespace detail
+
+class UnixStream;
+
+inline bool send_frame(UnixStream &stream, const void *payload,
+                       std::uint32_t size) noexcept;
+inline bool send_frame(UnixStream &stream, std::string_view payload) noexcept;
+inline bool receive_frame(UnixStream &stream, void *buffer,
+                          std::uint32_t capacity,
+                          std::uint32_t &received_size) noexcept;
+inline bool receive_frame(UnixStream &stream, std::string &payload,
+                          std::uint32_t max_size = default_max_frame_size);
 
 // Owns one connected AF_UNIX SOCK_STREAM descriptor. Errors are reported
 // through errno; methods do not throw exceptions.
@@ -95,7 +170,7 @@ class UnixStream {
             return false;
         }
 
-        const int fd = ::socket(AF_UNIX, SOCK_STREAM, 0);
+        const int fd = detail::create_stream_socket();
         if (fd < 0) {
             return false;
         }
@@ -125,6 +200,18 @@ class UnixStream {
         }
         return connect(path.c_str());
     }
+
+    // Compact client-facing spelling; it connects to a listening AF_UNIX path.
+    bool hear(const char *path) noexcept { return connect(path); }
+    bool hear(const std::string &path) noexcept { return connect(path); }
+
+    // Framed, binary-safe member I/O. Existing free functions are unchanged.
+    bool read(std::string &payload,
+              std::uint32_t max_size = default_max_frame_size);
+    bool read(void *buffer, std::uint32_t capacity,
+              std::uint32_t &received_size) noexcept;
+    bool write(std::string_view payload) noexcept;
+    bool write(const void *payload, std::uint32_t size) noexcept;
 
     bool valid() const noexcept { return fd_ >= 0; }
     int native_handle() const noexcept { return fd_; }
@@ -228,7 +315,7 @@ class UnixServer {
             return false;
         }
 
-        const int fd = ::socket(AF_UNIX, SOCK_STREAM, 0);
+        const int fd = detail::create_stream_socket();
         if (fd < 0) {
             return false;
         }
@@ -269,10 +356,7 @@ class UnixServer {
             return UnixStream{};
         }
 
-        int client_fd;
-        do {
-            client_fd = ::accept(fd_, nullptr, nullptr);
-        } while (client_fd < 0 && errno == EINTR);
+        const int client_fd = detail::accept_stream_socket(fd_);
 
         if (client_fd < 0) {
             if (error_code != nullptr) {
@@ -371,7 +455,7 @@ inline bool receive_frame(UnixStream &stream, void *buffer,
 // unbounded memory from an untrusted peer. On EMSGSIZE, the frame body remains
 // unread, so the caller should discard/close the stream.
 inline bool receive_frame(UnixStream &stream, std::string &payload,
-                          std::uint32_t max_size = default_max_frame_size) {
+                          std::uint32_t max_size) {
     payload.clear();
     std::uint32_t network_size = 0;
     if (!stream.receive_exact(&network_size, sizeof(network_size))) {
@@ -390,6 +474,27 @@ inline bool receive_frame(UnixStream &stream, std::string &payload,
         return false;
     }
     return true;
+}
+
+// Convenience alias, not a second implementation: old UnixStream users and
+// sysdata keep the same class and descriptor semantics.
+using sockstream = UnixStream;
+
+inline bool UnixStream::read(std::string &payload, std::uint32_t max_size) {
+    return receive_frame(*this, payload, max_size);
+}
+
+inline bool UnixStream::read(void *buffer, std::uint32_t capacity,
+                             std::uint32_t &received_size) noexcept {
+    return receive_frame(*this, buffer, capacity, received_size);
+}
+
+inline bool UnixStream::write(std::string_view payload) noexcept {
+    return send_frame(*this, payload);
+}
+
+inline bool UnixStream::write(const void *payload, std::uint32_t size) noexcept {
+    return send_frame(*this, payload, size);
 }
 
 } // namespace trionyx::ipc

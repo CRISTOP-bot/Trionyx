@@ -16,7 +16,28 @@ out cerr;
 
 #define CHECK(expression) do { if (!(expression)) std::abort(); } while (false)
 
+static void test_advanced_string_trim() {
+    stdr::advanced_string padded("...Trionyx...");
+    CHECK(padded.trim('.') == 6);
+    CHECK(padded.size() == 7);
+    CHECK(std::string(padded.begin(), padded.end()) == "Trionyx");
+
+    stdr::advanced_string all_trimmed("xxxxx");
+    CHECK(all_trimmed.trim('x') == 5);
+    CHECK(all_trimmed.size() == 0);
+    CHECK(all_trimmed.begin()[0] == '\0');
+
+    stdr::advanced_string empty("");
+    CHECK(empty.trim(' ') == 0);
+    CHECK(empty.size() == 0);
+
+    stdr::advanced_string interior("a-b-c");
+    CHECK(interior.trim('a') == 1);
+    CHECK(std::string(interior.begin(), interior.end()) == "-b-c");
+}
+
 int main() {
+    test_advanced_string_trim();
     char path[] = "/tmp/trionyx-out-test-XXXXXX";
     const int temporary_fd = ::mkstemp(path);
     CHECK(temporary_fd >= 0);
